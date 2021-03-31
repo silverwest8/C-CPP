@@ -1,3 +1,4 @@
+#define MAX_PLAIN_LEN 500000
 #define BLOCK_SIZE 16
 #define BUFSIZE 64
 #include <stdio.h>
@@ -20,41 +21,52 @@ void print_data(const char *tittle, const void* data, int len) {
 int main () {
     FILE * fp_input = fopen("PlaintextCiphertext.txt", "r");
     FILE * fp_output = fopen("keys.txt", "w");
-    char * txt;
-    char block[BLOCK_SIZE+1];
-    char key1[8] = "coders"; // 64bits
-    char key2[16] = "piewtf"; //128bits
-    while ( feof(fp_input) == 0) {
-        txt = fgets(block, BLOCK_SIZE+1, fp_input);
-        printf("%s\n", txt);
+    char plaintxt[100];
+    char ciphertxt[100];
+    char block[9][100];
+    // char key1[8] = "coders"; // 64bits
+    // char key2[16] = "piewtf"; //128bits
+    while (feof(fp_input) == 0) {
+        fgets(plaintxt, 100, fp_input);
+        printf("%s\n", plaintxt);
+        fgets(ciphertxt, 100, fp_input);
+        printf("%s\n", ciphertxt);
     }
-    unsigned char in[BUFSIZE], out[BUFSIZE], back[BUFSIZE];
-    unsigned char *e = out;
-
-    DES_cblock key; // 하나씩 대입해보자(64비트)
-    DES_key_schedule keysched; // 8비트를 빼자(56비트)
- 
+    printf("\n");
+    int idx = 0;
+    while (idx < strlen(plaintxt)) {
+        for (int i = 0; i < strlen(plaintxt)/8+1; i++) {
+            for (int j = 0; j < 8; j++) {
+                if (plaintxt[idx] != '\n') {
+                    block[i][j] = plaintxt[idx];
+                } else {
+                    block[i][j] = '\0';
+                }
+                idx++;
+            }
+            block[i][8] = '\0';
+            printf("%s\n", block[i]);
+        }
+    }
+    char in[BUFSIZE], out[BUFSIZE];
+    char *e = out;
     memset(in, 0, sizeof(in));
     memset(out, 0, sizeof(out));
-    memset(back, 0, sizeof(back));
- 
- 
-    /* 8 bytes of plaintext */
-    strcpy(in, "HillTown");
- 
-    printf("Plaintext: [%s]\n", in);
- 
-    DES_ecb_encrypt((DES_cblock *)in,(DES_cblock *)out, &keysched, DES_ENCRYPT);
- 
-    printf("Ciphertext:");
-    while (*e) printf(" [%02x]", *e++);
-    printf("\n");
- 
-    DES_ecb_encrypt((DES_cblock *)out,(DES_cblock *)back, &keysched, DES_DECRYPT);
- 
-    printf("Decrypted Text: [%s]\n", back);
+    DES_cblock key = "coders"; // 하나씩 대입해보자(64비트)
+    DES_key_schedule keysched; // 8비트를 빼자(56비트)
+    DES_set_key((DES_cblock *)key, &keysched);
 
-
+    for (int i = 0; i < 8; i++) {
+        /* 8 bytes of plaintext */
+        strcpy(in, block[i]);
+    
+        printf("Plaintext: [%s]\n", in);
+        DES_ecb_encrypt((DES_cblock *)in,(DES_cblock *)out, &keysched, DES_ENCRYPT);
+    
+        printf("Ciphertext:");
+        while (*e) printf("[%02x] ", *e++);
+        printf("\n");
+    }
 
     /* AES key for Encryption and Decryption */
     const static unsigned char aes_key[]={0x00,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xAA,0xBB,0xCC,0xDD,0xEE,0xFF};

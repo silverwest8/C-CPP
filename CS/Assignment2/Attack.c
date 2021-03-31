@@ -74,7 +74,7 @@ int main () {
     DES_set_key((DES_cblock *)key, &keysched);
  
     /* 8 bytes of plaintext */
-    strcpy(in, "HillTown");
+    // strcpy(in, "HillTown");
  
     printf("Plaintext: [%s]\n", in);
  

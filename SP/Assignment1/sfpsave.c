@@ -392,17 +392,11 @@ sfp sfp_add(sfp a, sfp b) {
     int bs, bexp, bE;
     getInfo(a, &as, &aexp, &aE);
     getInfo(b, &bs, &bexp, &bE);
-    
-    //지수조정
-
-    //frac 연산
-    sfp calaM = 0;
-    sfp calbM = 0;
-    sfp sumMs = 0;
 
     int aCheck = specialCheck(a, as, aexp);
     int bCheck = specialCheck(b, bs, bexp);
     sfp infinityP = 0;
+    int s = 
     sfp infinityM = 0;
     sfp NaN = 0;
     infinityM |= (1 << 15);
@@ -421,6 +415,10 @@ sfp sfp_add(sfp a, sfp b) {
         return NaN;
     }
 
+    sfp calaM = 0;
+    sfp calbM = 0;
+    sfp sumMs = 0;
+    
     if ((aexp > 0 && aexp < 31) && (bexp > 0 && bexp < 31)) { //
         //------------------------------------//
         printf("둘다 normal");
