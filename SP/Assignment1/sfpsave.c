@@ -36,6 +36,39 @@ int Check(sfp input) {
     return -1;
 }
 
+void getInfo(sfp input, int *sign, int *exp, int *E) {
+    int temp;
+    *exp = 0;
+    *sign = input >> 15 & 1;
+    for (int i = 14; i >= 10; i--) {
+        if (input >> i & 1) {
+            temp = 0;
+            temp |= 1;
+            temp <<= i-10;
+            *exp += temp;
+        }
+    }
+    *E = *exp - 15;
+    printf("sign : %d, exp : %d E : %d\n", *sign, *exp, *E);
+}
+
+int specialCheck(sfp input, int sign, int exp) {
+    return 1; //+infinity
+    return -1; //-infinity
+    return 2; //NaN
+    return 0; //normal
+}
+
+void applySign(sfp* input, int sign) {
+    *input |= sign << 15 & 1;
+}
+
+void applyExp(sfp* input, int exp) {
+    for (int i = 14; i >= 10; i--) {
+        *input |= (exp << i) & 1;
+    }
+}
+
 sfp int2sfp(int input) {
     
     sfp result = 0;
@@ -355,44 +388,10 @@ float sfp2float(sfp input) {
 
 sfp sfp_add(sfp a, sfp b) {
     sfp result = 0;
-    //지수구하기
-    //////////////
-    printf("\n<A>\n");
-    for (int i = 15; i >= 0; i--) { printf("%d", (a >> i) & 1); }
-    int aexp = 0;
-    int atemp = 0;
-    printf("\naexp : ");
-    for (int i = 14; i >= 10; i--) {
-        printf("%d",(a >> i) & 1);
-        if (a >> i & 1) {
-            atemp = 0;
-            atemp |= 1;
-            atemp <<= i-10;
-            aexp += atemp;
-        }
-    }
-    printf("\naexp : %d\n", aexp);
-    int aE = aexp - 15;
-    printf("aE : %d\n", aE);
-    ////////////////
-    printf("\n<B>\n");
-    for (int i = 15; i >=0; i--) { printf("%d", (b >> i) & 1); }
-    int bexp = 0;
-    int btemp = 0;
-    printf("\nbexp : ");
-    for (int i = 14; i >= 10; i--) {
-        printf("%d",(b >> i) & 1);
-        if (b >> i & 1) {
-            btemp = 0;
-            btemp |= 1;
-            btemp <<= i-10;
-            bexp += btemp;
-        }
-    }
-    printf("\nbexp : %d\n", bexp);
-    int bE = bexp - 15;
-    printf("bE : %d\n", bE);
-    /////////////
+    int as, aexp, aE;
+    int bs, bexp, bE;
+    getInfo(a, &as, &aexp, &aE);
+    getInfo(b, &bs, &bexp, &bE);
     
     //지수조정
 
@@ -401,21 +400,55 @@ sfp sfp_add(sfp a, sfp b) {
     sfp calbM = 0;
     sfp sumMs = 0;
 
-    if ((aE > 0 && aE < 31) && (bE > 0 && bE < 31)) { //둘다 normal
+    int aCheck = specialCheck(a, as, aexp);
+    int bCheck = specialCheck(b, bs, bexp);
+    sfp infinityP = 0;
+    sfp infinityM = 0;
+    sfp NaN = 0;
+    infinityM |= (1 << 15);
+
+    if (aCheck == 1 && bCheck == 1) {
+        return infinityP;
+    } else if ((aCheck == 1 && bCheck == -1) || (aCheck == -1 && bCheck == 1)) {
+        return NaN;
+    } else if ((aCheck == 1 && bCheck == 0) || (aCheck == 0 && bCheck == 1)) {
+        return infinityP;
+    } else if (aCheck == -1 && bCheck == -1) {
+        return infinityM;
+    } else if ((aCheck == -1 && bCheck == 0) || (aCheck == 0 && bCheck == -1)) {
+        return infinityM;
+    } else if (aCheck == 2 || bCheck == 2) {
+        return NaN;
+    }
+
+    if ((aexp > 0 && aexp < 31) && (bexp > 0 && bexp < 31)) { //
         //------------------------------------//
+        printf("둘다 normal");
         printf("\naM : ");
+        int push = 0;
         for (int i = 9; i >= 0; i--) {
             printf("%d",(a >> i) & 1);
-            calaM |= ((a >> i) & 1) << (i-10+aE); //4 3 2 1 0
+            if (a >> i & 1) {
+                push = i;
+            }
         }
-        calaM |= 1 << aE;
+        for (int i = 9; i >= 0; i--) {
+            calaM |= ((a >> i) & 1) << (i-push);
+        }
+        calaM |= 1 << (10-push);
         printf("\nbM : ");
         for (int i = 9; i >= 0; i--) {
             printf("%d",(b >> i) & 1);
-            calbM |= ((b >> i) & 1) << (i-10+bE); //9-3 = 6 // 2 1 0
+            if (b >> i & 1) {
+                push = i;
+            }
         }
-        calbM |= 1 << bE;
+        for (int i = 9; i >= 0; i--) {
+            calbM |= ((b >> i) & 1) << (i-push);
+        }
+        calbM |= 1 << (10-push);
         //------------------------------------//
+
         if (aexp > bexp) { //a의 exp가 더 클 경우
             printf("\na의 exp가 더 클 경우\n");
             int gap = aexp - bexp;
@@ -458,7 +491,7 @@ sfp sfp_add(sfp a, sfp b) {
         }
         //------------------------------------//
         else if (aexp < bexp) { //b의 exp가 더 클 경우
-            printf("\nb의 exp가 더 클 경우");
+            printf("\n\nb의 exp가 더 클 경우\n");
             int gap = bexp - aexp;
             printf("gap : %d\n", gap);
 
@@ -500,14 +533,6 @@ sfp sfp_add(sfp a, sfp b) {
         //------------------------------------//
         else { //같은 경우
             printf("\naexp, bexp가 같은경우");
-            sumMs = calaM + calbM;
-            int push = 0;
-            for (int i = 9; i >= 0; i--) {
-                if ((sumMs >> i) & 1) {
-                    push = 10-i;
-                    break;
-                }
-            }
             ////////////
             printf("\ncalaM : \n");
             for (int i = 15; i >= 0; i--) {
@@ -518,14 +543,25 @@ sfp sfp_add(sfp a, sfp b) {
                 printf("%d",(calbM >> i) & 1);
             }
             ////////////
+            sumMs = calaM + calbM;
+            int push = 0;
+            int first1 = 0;
+            for (int i = 9; i >= 0; i--) {
+                if ((sumMs >> i) & 1) {
+                    push = 10-i;
+                    first1 = i;
+                    break;
+                }
+            }
+            sumMs ^= 1 << first1;
+            printf("\npush: %d\n", push);
             printf("\nsumMs : \n");
             for (int i = 9; i >= 0; i--) {
                 printf("%d",(sumMs >> i) & 1);
                 result |= ((sumMs >> i) & 1) << (i+push);
             }
-            printf("\npush: %d\n", push);
-            aexp ++;
-            printf("aexp : %d\n", aexp);
+            aexp++;
+            printf("\naexp : %d\n", aexp);
             for(int i = 4; i >= 0; i--) {
                 printf("%d",(aexp >> i) & 1);
                 result |= ((aexp >> i) & 1) << (i+10);
@@ -537,7 +573,7 @@ sfp sfp_add(sfp a, sfp b) {
             printf("%d",(result >> i) & 1);
         }
     }
-    else {
+    else if (aexp == 0 && bexp == 0) { //둘다 demormal
         //------------------------------------//
         printf("\naM : ");
         for (int i = 9; i >= 0; i--) {
@@ -666,6 +702,9 @@ sfp sfp_add(sfp a, sfp b) {
             }
         }
         //------------------------------------//
+    }
+    else if (aexp == 31 && bexp == 31) {
+
     }
     return result;
 }
@@ -831,7 +870,6 @@ sfp sfp_mul(sfp a, sfp b){
 }
 
 char* sfp2bits(sfp result) {
-    printf("\nin sfp2bits start\n");
     char * bitStream = malloc(sizeof(char)*17);
     for(int i = 15; i >= 0; i--) {
         // printf("%d",(result >> i) & 1);
@@ -842,8 +880,5 @@ char* sfp2bits(sfp result) {
         }
 	}
     bitStream[16] = '\0';
-    printf("---------------------\n");
-    printf("%s\n", bitStream);
-    printf("---------------------\n");
     return bitStream;
 }
