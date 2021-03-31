@@ -9,7 +9,7 @@ void copyij(int src[2048][2048], int dst[2048][2048]) {
         }
     }
 }
-            
+
 void copyji(int src[2048][2048], int dst[2048][2048]) {
     int i,j;
     for (j = 0; j < 2048; j++) {
