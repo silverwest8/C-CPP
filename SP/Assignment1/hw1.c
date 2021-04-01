@@ -89,7 +89,6 @@ int main(int argc, char *argv[])
 	printf("\n");
 
 	printf("Test 5: Addition\n");
-	printf("5-1\n");
 	for(x = 0; x < case_num1; x++) {
 		for(y = x; y < case_num1; y++) {
 			sfp result = sfp_add(sf1[x], sf1[y]);
@@ -106,7 +105,6 @@ int main(int argc, char *argv[])
 			free(resultbits);
 		}
 	}
-	printf("5-2\n");
 	for(x = 0; x < case_num2; x++) {
 		for(y = x; y < case_num2; y++) {
 			sfp result = sfp_add(sf2[x], sf2[y]);
@@ -123,7 +121,6 @@ int main(int argc, char *argv[])
 			free(resultbits);
 		}
 	}
-	printf("5-3\n");
 	for(x = 0; x < case_num1; x++) {
 		for(y = 0; y < case_num2; y++) {
 			sfp result = sfp_add(sf1[x], sf2[y]);
@@ -144,7 +141,6 @@ int main(int argc, char *argv[])
 	printf("\n");
 	
 	printf("Test 6: Multiplication\n");
-	printf("6-1\n");
 	for(x = 0; x < case_num1; x++) {
 		for(y = x; y < case_num1; y++) {
 			printf("(x,y) = (%d, %d)\n", x, y);
@@ -162,7 +158,6 @@ int main(int argc, char *argv[])
 			free(resultbits);
 		}
 	}
-	printf("6-2\n");
 	for(x = 0; x < case_num2; x++) {
 		for(y = x; y < case_num2; y++) {
 			printf("(x,y) = (%d, %d)\n", x, y);
@@ -180,7 +175,6 @@ int main(int argc, char *argv[])
 			free(resultbits);
 		}
 	}
-	printf("6-3\n");
 	for(x = 0; x < case_num1; x++) {
 		for(y = 0; y < case_num2; y++) {
 			printf("(x,y) = (%d, %d)\n", x, y);

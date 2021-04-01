@@ -220,8 +220,6 @@ sfp float2sfp(float input) {
     }
 
     //sign
-    printf("\nsign : ");
-    printf("%d", (save >> 31) & 1);
     if ((save >> 31) & 1) {
         applySign(&result, 1);
     }
@@ -247,22 +245,30 @@ sfp float2sfp(float input) {
     printf("\nsfpexp : %d\n", sfpexp);
 
     if (sfpexp < 0) {
+
+    }
+    else if (sfpexp > 31) {
         //+-무한대
         sfpexp = 31;
         printf("\nsfpexp : %d\n", sfpexp);
     }
-    for(int i = 4; i >= 0; i--) {
-        printf("%d", (sfpexp >> i) & 1);
-        result |= ((sfpexp >> i) & 1) << (i+10);
-	}
-    printf("\nresult : %s\n", sfp2bits(result));
+    else if (sfpexp == 0) {
 
-    //frac
-    printf("Ffrac : \n");
-    for(int i = 22; i >= 13; i--) {
-        printf("%d", (save >> i) & 1);
-        result |= ((save >> i) & 1) << (i-13);
-	}
+    }
+    else if (sfpexp == 31) {
+
+    }
+    else {
+        //exp
+        applyExp(&result, sfpexp);
+        printf("\nresult : %s\n", sfp2bits(result));
+        //frac
+        printf("Ffrac : \n");
+        for(int i = 22; i >= 13; i--) {
+            printf("%d", (save >> i) & 1);
+            result |= ((save >> i) & 1) << (i-13);
+        }
+    }
     printf("\nresult : %s\n", sfp2bits(result));
     return result;
 }
@@ -270,42 +276,20 @@ sfp float2sfp(float input) {
 float sfp2float(sfp input) {
     float result = 0;
     unsigned save = *(unsigned *)&result;
-    printf("input : ");
-    for (int i = 15; i >= 0; i--) {
-        printf("%d", (input >> i) & 1);
-    }
-    printf("\n\n");
-
+    printf("\ninput : %s\n", sfp2bits(input));
     //sign
     printf("sign : ");
     printf("%d",(input >> 15) & 1);
     save |= ((input >> 15) & 1) << 31;
-    printf("\n\n");
-    printf("result : ");
+    printf("\nresult : ");
     for (int i = 31; i >= 0; i--) {
         printf("%d", (save >> i) & 1);
     }
 
     //exp
-    printf("\n\n");
-    int sfpexp = 0;
-    int temp = 0;
-    printf("sfpexp : ");
-    for (int i = 14; i >= 10; i--) {
-        printf("%d",(input >> i) & 1);
-        if (input >> i & 1) {
-            temp = 0;
-            temp |= 1;
-            temp <<= i-10;
-            sfpexp += temp;
-        }
-    }
-    printf("\n\n");
-    printf("sfpexp : %d\n", sfpexp);
-    printf("\n\n");
+    int sfpexp = getExp(input);
     int E = sfpexp - 15;
-    printf("E : %d\n", E);
-    printf("\n\n");
+    printf("\nE : %d\n", E);
 
     int fexp = E + 127;
     printf("fexp : %d\n", fexp);
@@ -812,11 +796,6 @@ sfp sfp_mul(sfp a, sfp b){
                 break;
             }
         }
-        /*
-        if (push > 10) { //push : 15 14 13 12 11
-            mulMs >>= (push-10); 
-        }
-        */
         printf("\npush : %d\n", push);
         int exp = aE+bE+15;
         printf("exp : %d\n", exp);
