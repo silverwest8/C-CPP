@@ -1,12 +1,37 @@
 #include "sfp.h"
 #include <stdio.h>
 #include <stdlib.h>
+sfp getNaN();
+sfp getinfinitP();
+sfp getinfinitM();
+int getSign(sfp input);
+int getExp(sfp input);
+sfp getFrac(sfp input);
+void getInfo(sfp input, int *sign, int *exp, int *E);
+int specialCheck(sfp input);
+void applySign(sfp* input, int sign);
+void applyExp(sfp* input, int exp);
+void applyFrac(sfp* input, sfp c);
+
 sfp getNaN() {
     sfp NaN = 0;
     for (int i = 15; i > 0; i--) {
         NaN |= (1<<i);
     }
     return NaN;
+}
+
+sfp getinfinitP() {
+    sfp infinityP = 0;
+    applyExp(&infinityP, 31);
+    return infinityP;
+}
+
+sfp getinfinitM() {
+    sfp infinitM = 0;
+    applySign(&infinitM, 1);
+    applyExp(&infinitM, 31);
+    return infinitM;
 }
 
 int getSign(sfp input) {
@@ -81,16 +106,16 @@ void applyExp(sfp* input, int exp) {
 void applyFrac(sfp* input, sfp c) {
     *input |= c;
 }
-
+//1
 sfp int2sfp(int input) {
-    sfp result = 0;
-    //2진수 변경 //만 백..?
-    //sign 비트 설정
-    if ((input >> 31) & 1) {
-        applySign(&result, 1);
-    }
+    printf("input: %d\n", input);
+    for(int i = 31; i >= 0; i--) {
+        printf("%d",(input >> i) & 1);
+	}
+    printf("\n");
     //exp 설정
-    int E = 0;
+    int E;
+    int exp;
     int bias = 15;
     for(int i = 30; i >= 0; i--) {
         if ((input >> i) & 1) {
@@ -98,16 +123,51 @@ sfp int2sfp(int input) {
             break;
         }
 	}
-    int exp = E + bias;
-    if (E == 0) { //denormalized
+    exp = E+15;
+    printf("\nexp : %d\n", exp);
+    int push = 0;
+    for(int i = 30; i >= 0; i--) {
+        if((input >> i) & 1) {
+            push = i;
+            break;
+        }
+	}
+    printf("\npush : %d\n", push);
+    sfp result = 0;
+    //2진수 변경 //만 백..? //push가 10(0) 9(1) 8 ... 은 왼쪽, 11(1), 12 13 ... 오른쪽 shift
+    if (push <= 10) {
+        input <<= (10-push);
+    }
+    else {
+        input >>= (push-10);
+    }
+    for(int i = 31; i >= 0; i--) {
+        printf("%d",(input >> i) & 1);
+	}
+    printf("\n");
+
+    int maxsfp =  2146435072;
+    int minsfp = -2146435072;
+    if (input > maxsfp) {
+        printf("maximum of sfp\n");
+        return getinfinitP();
+    }
+    else if (input < minsfp) {
+        printf("minimum of sfp\n");
+        return getinfinitM();
+    }
+    if (exp == 0) { //denormalized
         return result;
     }
     else if (exp > 0 && exp < 31) { //normalized
         applyExp(&result, exp);
+        printf("normalized\n");
         //frac 설정
         for(int i = 9; i >= 0; i--) {
-            result |= ((input >> (E+i-10)) & 1) << i;
+            printf("%d", ((input >> i) & 1) );
+            result |= (((input >> i) & 1) << i);
         }
+        printf("\n");
     }
     else if (exp >= 31) { //special
         int frac = 0;
@@ -119,12 +179,26 @@ sfp int2sfp(int input) {
     }
 	return result;
 }
-
+//2
 int sfp2int(sfp input) {
     int result = 0;
-    //input이 양의 무한대 exp = 11..1, frac = 00..0
-    //input이 음의 무한대 exp = 11..1, frac = 00..0
-    //+- NaN exp = 11..1, frac != 00..0
+    int Tmin = 1;
+    Tmin <<= 31;
+    int Tmax = 1;
+    Tmax <<= 31;
+    Tmax--;
+    if (input == getinfinitP()) {
+        printf("여기겠지??????\n");
+        return Tmax;
+    }
+    else if (input == getinfinitM()) {
+        printf("여기겠지???\n");
+        return Tmin;
+    }
+    else if (specialCheck(input) == 2) {
+        printf("여기겠지?\n");
+        return Tmin;
+    }
     //round toward zero
     //denorm
     //norm
@@ -137,6 +211,7 @@ int sfp2int(sfp input) {
 
     //frac
     if (exp > 0 && exp < 31) {
+        printf("여기겠지\n");
         int E = exp - 15;
         for (int i = 9; i >= 0; i--) {
             result |= ((input >> i) & 1) << (i-(10-E));
@@ -146,11 +221,6 @@ int sfp2int(sfp input) {
         return result;
         //그대로
     } else if (exp == 31) {
-        int Tmin = 1;
-        Tmin <<= 31;
-        int Tmax = 1;
-        Tmax <<= 31;
-        Tmax--;
         for (int i = 9; i >= 0; i--) {
             if ((input >> i) & 1) {
                 for(int i = 15; i >= 0; i--) {
@@ -174,7 +244,7 @@ int sfp2int(sfp input) {
     }
     return result;
 }
-
+//3
 sfp float2sfp(float input) {
     sfp result = 0;
     unsigned save = *(unsigned *)&input;
@@ -224,18 +294,30 @@ sfp float2sfp(float input) {
     }
     return result;
 }
-
+//4
 float sfp2float(sfp input) {
+    printf("\ninput : %s\n", sfp2bits(input));
+
     float result = 0;
     unsigned save = *(unsigned *)&result;
-
+    printf("result : ");
+    for (int i = 31; i >= 0; i--) {
+        printf("%d", (save >> i) & 1);
+    }
+    printf("\n");
     //sign
     save |= ((input >> 15) & 1) << 31;
 
     //exp
     int sfpexp = getExp(input);
+    printf("sfpexp : %d\n", sfpexp);
     int E = sfpexp - 15;
+    printf("E : %d\n", E);
     int fexp = E + 127;
+    if (sfpexp == 0) {
+        fexp = 0;
+    }
+    printf("fexp : %d\n", fexp);
     for(int i = 7; i >= 0; i--) {
         save |= ((fexp >> i) & 1) << (i+23);
 	}
@@ -247,7 +329,7 @@ float sfp2float(sfp input) {
     result = *(float*)&save;
     return result;
 }
-
+//5
 sfp sfp_add(sfp a, sfp b) {
     sfp result = 0;
     int as, aexp, aE;
