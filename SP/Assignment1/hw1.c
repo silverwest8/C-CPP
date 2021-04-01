@@ -147,6 +147,7 @@ int main(int argc, char *argv[])
 	printf("6-1\n");
 	for(x = 0; x < case_num1; x++) {
 		for(y = x; y < case_num1; y++) {
+			printf("(x,y) = (%d, %d)\n", x, y);
 			sfp result = sfp_mul(sf1[x], sf1[y]);
 			char *resultbits;
 			resultbits = sfp2bits(result);
@@ -164,6 +165,7 @@ int main(int argc, char *argv[])
 	printf("6-2\n");
 	for(x = 0; x < case_num2; x++) {
 		for(y = x; y < case_num2; y++) {
+			printf("(x,y) = (%d, %d)\n", x, y);
 			sfp result = sfp_mul(sf2[x], sf2[y]);
 			char *resultbits;
 			resultbits = sfp2bits(result);
@@ -181,6 +183,7 @@ int main(int argc, char *argv[])
 	printf("6-3\n");
 	for(x = 0; x < case_num1; x++) {
 		for(y = 0; y < case_num2; y++) {
+			printf("(x,y) = (%d, %d)\n", x, y);
 			sfp result = sfp_mul(sf1[x], sf2[y]);
 			char *resultbits;
 			resultbits = sfp2bits(result);

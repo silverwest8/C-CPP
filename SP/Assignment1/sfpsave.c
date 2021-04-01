@@ -87,48 +87,35 @@ void applyFrac(sfp* input, sfp c) {
 }
 
 sfp int2sfp(int input) {
-    
     sfp result = 0;
+    //2진수 변경 //만 백..?
     printf("input: %d\n", input);
     for(int i = 31; i >= 0; i--) {
         printf("%d",(input >> i) & 1);
 	}
-    printf("\n");
-    //2진수 변경 //만 백..?
-
     //sign 비트 설정
-    applySign(&result, (input >> 31) & 1);
+    if ((input >> 31) & 1) {
+        applySign(&result, 1);
+    }
     printf("\nresult : %s\n", sfp2bits(result));
-
     //exp 설정
     int E = 0;
     int bias = 15;
     for(int i = 30; i >= 0; i--) {
-        printf("%d", (input >> i) & 1);
         if ((input >> i) & 1) {
             E = i;
             break;
         }
 	}
-    printf("\n");
     int exp = E + bias;
-
-    //frac 설정
-    printf("frac : \n");
+    printf("\nE : %d\n", E);
     if (E == 0) { //denormalized
-        printf("\n case 0 \n");
+        return result;
     }
-    else if (exp > 0 && exp < 31) { //normalized 
-        for(int i = 4; i >= 0; i--) {
-            printf("%d",(exp >> i) & 1);
-            result |= ((exp >> i) & 1) << (i+10);
-        }
-        printf("\n\n");
-        printf("result : \n");
-        for(int i = 15; i >= 0; i--) {
-            printf("%d",(result >> i) & 1);
-        }
-        printf("\n\n");
+    else if (exp > 0 && exp < 31) { //normalized
+        applyExp(&result, exp);
+        printf("\nresult : %s\n", sfp2bits(result));
+        //frac 설정
         for(int i = 9; i >= 0; i--) {
             printf("%d", ((input >> (E+i-10)) & 1));
             result |= ((input >> (E+i-10)) & 1) << i;
@@ -137,45 +124,25 @@ sfp int2sfp(int input) {
     else if (exp >= 31) { //special
         int frac = 0;
         exp = 31;
-        for(int i = 4; i >= 0; i--) {
-            printf("%d",(exp >> i) & 1);
-            result |= ((exp >> i) & 1) << (i+10);
-        }
-        printf("\n\n");
-        printf("result : \n");
-        for(int i = 15; i >= 0; i--) {
-            printf("%d",(result >> i) & 1);
-        }
+        applyExp(&result, exp);
+        printf("\nresult : %s\n", sfp2bits(result));
         for(int i = 9; i >= 0; i--) {
             printf("%d", 0);
             result |= (frac >> 9) & 1;
         }
     }
-
-
-    printf("\n\n");
-    printf("result : \n");
-    for(int i = 15; i >= 0; i--) {
-        printf("%d",(result >> i) & 1);
-	}
-    printf("\n\n");
+    printf("\nresult : %s\n", sfp2bits(result));
 	return result;
 }
 
 int sfp2int(sfp input) {
-    printf("input : \n");
-    for (int i = 15; i >=0; i--) {
-        printf("%d", (input >> i) & 1);
-    }
+    printf("\ninput : %s\n", sfp2bits(input));
     int result = 0;
     printf("\nresult: %d\n", result);
     for (int i = 31; i >= 0; i--) {
         printf("%d", (result >> i) & 1);
     }
-    
     //input이 양의 무한대 exp = 11..1, frac = 00..0
-
-    printf("\n\n");
     //input이 음의 무한대 exp = 11..1, frac = 00..0
     //+- NaN exp = 11..1, frac != 00..0
     //round toward zero
@@ -183,28 +150,16 @@ int sfp2int(sfp input) {
     //norm
 
     //부호
-    printf("sign : %d\n", (input >> 15) & 1);
+    printf("\nsign : %d\n", (input >> 15) & 1);
     result |= ((input >> 15) & 1) << 31;
     
     printf("result : \n");
     for(int i = 31; i >= 0; i--) {
         printf("%d",(result >> i) & 1);
     }
-    printf("\n\n");
 
     //exp = E + bias
-    int exp = 0;
-    int temp = 0;
-    printf("exp : ");
-    for (int i = 14; i >= 10; i--) {
-        printf("%d",(input >> i) & 1);
-        if (input >> i & 1) {
-            temp = 0;
-            temp |= 1;
-            temp <<= i-10;
-            exp += temp;
-        }
-    }
+    int exp = getExp(input);
     printf("\nexp : %d\n", exp);
 
     //frac
@@ -263,19 +218,16 @@ sfp float2sfp(float input) {
     for (int i = 31; i >= 0; i--) {
         printf("%d", (save >> i) & 1);
     }
-    printf("\n\n");
 
     //sign
-    printf("sign : ");
-    printf("%d",(save >> 31) & 1);
-    result |= ((save >> 31) & 1) << 15;
-    printf("\nresult:\n");
-    for (int i = 15; i >= 0; i--) {
-        printf("%d", (result >> i) & 1);
+    printf("\nsign : ");
+    printf("%d", (save >> 31) & 1);
+    if ((save >> 31) & 1) {
+        applySign(&result, 1);
     }
+    printf("\nresult : %s\n", sfp2bits(result));
 
     //exp
-    printf("\n\n");
     int fexp = 0;
     int temp = 0;
     printf("fexp : ");
@@ -291,7 +243,6 @@ sfp float2sfp(float input) {
     printf("\nexp : %d\n", fexp);
     int E = fexp - 127;
     printf("\nE : %d\n", E);
-
     int sfpexp = E + 15;
     printf("\nsfpexp : %d\n", sfpexp);
 
@@ -304,12 +255,7 @@ sfp float2sfp(float input) {
         printf("%d", (sfpexp >> i) & 1);
         result |= ((sfpexp >> i) & 1) << (i+10);
 	}
-    printf("\n\n");
-    printf("result:\n");
-    for (int i = 15; i >= 0; i--) {
-        printf("%d", (result >> i) & 1);
-    }
-    printf("\n\n");
+    printf("\nresult : %s\n", sfp2bits(result));
 
     //frac
     printf("Ffrac : \n");
@@ -317,12 +263,7 @@ sfp float2sfp(float input) {
         printf("%d", (save >> i) & 1);
         result |= ((save >> i) & 1) << (i-13);
 	}
-    printf("\n\n");
-    printf("result:\n");
-    for (int i = 15; i >= 0; i--) {
-        printf("%d", (result >> i) & 1);
-    }
-    printf("\n\n");
+    printf("\nresult : %s\n", sfp2bits(result));
     return result;
 }
 
@@ -530,6 +471,7 @@ sfp sfp_add(sfp a, sfp b) {
                     printf("\nresult : %s\n", sfp2bits(result));
                     printf("\naexp : %d\n", aexp);
                     applyExp(&result, aexp);
+                    printf("\nresult : %s\n", sfp2bits(result));
                 }
             }
         }
@@ -537,12 +479,13 @@ sfp sfp_add(sfp a, sfp b) {
         else if (aexp < bexp) { //b의 exp가 더 클 경우
             printf("\n\nb의 exp가 더 클 경우\n");
             int gap = bexp - aexp; printf("gap : %d\n", gap);
-            printf("\ncalaM : \n"); for (int i = 15; i >= 0; i--) { printf("%d",(calaM >> i) & 1); }
-            printf("\ncalbM : \n"); for (int i = 15; i >= 0; i--) { printf("%d",(calbM >> i) & 1); }
-            if (getSign(a) && getSign(b)) { //둘다 음수
-                printf("둘 다 음수\n");
+            if (getSign(a) == getSign(b)) { //둘다 음수거나 양수
+                if (getSign(a)) {
+                    applySign(&result, 1);
+                }
+                printf("둘 다 음수거나 양수\n");
                 sumMs = calaM + calbM;
-                applySign(&result, 1);
+                
                 printf("\n");
                 int push = 0;
                 for (int i = 9; i >= 0; i--) {
@@ -559,36 +502,7 @@ sfp sfp_add(sfp a, sfp b) {
                 }
                 printf("\nresult : %s\n", sfp2bits(result));
                 printf("\naexp : %d\n", aexp);
-                for(int i = 4; i >= 0; i--) {
-                    printf("%d",(aexp >> i) & 1);
-                    result |= ((aexp >> i) & 1) << (i+10);
-                }
-                printf("\n");
-            }
-            else if (!getSign(a) && !getSign(b)) { //둘다 양수
-                sumMs = calaM + calbM;
-                printf("\n");
-                int push = 0;
-                for (int i = 9; i >= 0; i--) {
-                    if ((sumMs >> i) & 1) {
-                        push = 10-i;
-                        break;
-                    }
-                }
-                sumMs ^= 1 << push;
-                printf("\nsumMs : \n");
-                for (int i = 9; i >= 0; i--) {
-                    printf("%d",(sumMs >> i) & 1);
-                    result |= ((sumMs >> i) & 1) << (i+push);
-                }
-                printf("\nresult : %s\n", sfp2bits(result));
-                printf("\n");
-                printf("\naexp : %d\n", aexp);
-                for(int i = 4; i >= 0; i--) {
-                    printf("%d",(aexp >> i) & 1);
-                    result |= ((aexp >> i) & 1) << (i+10);
-                }
-                printf("\n");
+                applyExp(&result, aexp);
             }
             else if (getSign(a) ^ getSign(b)) { //둘 중 하나만 양수
                 if (getSign(a)) { //a만 음수
@@ -859,9 +773,12 @@ sfp sfp_mul(sfp a, sfp b){
 
     //frac 곱하기
     if ((aexp > 0 && aexp < 31) && (bexp > 0 && bexp < 31)) { //둘 다 normal
+        if(as != bs) {
+            applySign(&result, 1);
+        }
         printf("\n둘 다 normal\n");
         //aFrac 계산
-        printf("\naM : ");
+        printf("aM : ");
         int pushA = 0;
         for (int i = 9; i >= 0; i--) {
             printf("%d",(a >> i) & 1);
@@ -869,9 +786,7 @@ sfp sfp_mul(sfp a, sfp b){
                 pushA = i;
             }
         }
-        for (int i = 9; i >= 0; i--) {
-            calaM |= ((a >> i) & 1) << (i-pushA);
-        }
+        for (int i = 9; i >= 0; i--) { calaM |= ((a >> i) & 1) << (i-pushA); }
         calaM |= 1 << (10-pushA);
         //bFrac 계산
         int pushB = 0;
@@ -882,86 +797,41 @@ sfp sfp_mul(sfp a, sfp b){
                 pushB = i;
             }
         }
-        for (int i = 9; i >= 0; i--) {
-            calbM |= ((b >> i) & 1) << (i-pushB);
-        }
+        for (int i = 9; i >= 0; i--) { calbM |= ((b >> i) & 1) << (i-pushB); }
         calbM |= 1 << (10-pushB);
-        printf("\npushA : %d, pushB : %d\n", pushA, pushB);
-        printf("\ncalaM : \n"); for (int i = 15; i >= 0; i--) { printf("%d", (calaM >> i) & 1); }
-        printf("\ncalbM : \n"); for (int i = 15; i >= 0; i--) { printf("%d", (calbM >> i) & 1); }
+        printf("\npushA : %d, pushB : %d", pushA, pushB);
+        printf("\ncalaM : "); for (int i = 15; i >= 0; i--) { printf("%d", (calaM >> i) & 1); }
+        printf("\ncalbM : "); for (int i = 15; i >= 0; i--) { printf("%d", (calbM >> i) & 1); }
         //----------------------------------------//
-
-        if (aexp > bexp) { //a의 exp가 더 클 경우
-            mulMs = calaM * calbM;
-            printf("\n");
-            int push = 0;
-            for (int i = 15; i >= 0; i--) {
-                if ((mulMs >> i) & 1) {
-                    push = i;
-                    break;
-                }
-            }
-            printf("push : %d\n", push);
-            printf("\nmulMs : \n");
-            for (int i = 15; i >= 0; i--) {
-                printf("%d",(mulMs >> i) & 1);
-            }
-            printf("\n");
-            mulMs ^= 1 << push;
-            mulMs <<= (10-push);
-            for (int i = 9; i >= 0; i--) {
-                printf("%d",(mulMs >> i) & 1);
-                result |= ((mulMs >> i) & 1) << i;
-            }
-            printf("\nresult : \n");
-            for(int i = 15; i >= 0; i--) {
-                printf("%d",(result >> i) & 1);
-            }
-            printf("\n");
-            int exp = push+15; //push 10-25, 9-24, 7-22
-            printf("\nexp : %d\n", exp);
-            for (int i = 4; i >= 0; i--) {
-                printf("%d", (exp >> i) & 1);
-                result |= ((exp >> i) & 1) << (i+10);
+        mulMs = calaM * calbM;
+        printf("\nmulMs : %s\n", sfp2bits(mulMs));
+        int push = 0;
+        for (int i = 15; i >= 0; i--) {
+            if ((mulMs >> i) & 1) {
+                push = i;
+                break;
             }
         }
-        else if (aexp < bexp) { //b의 exp가 더 클 경우
-
+        /*
+        if (push > 10) { //push : 15 14 13 12 11
+            mulMs >>= (push-10); 
         }
-        else { //a와 b의 exp가 같은 경우
-            mulMs = calaM * calbM;
-            printf("\n");
-            int push = 0;
-            for (int i = 15; i >= 0; i--) {
-                if ((mulMs >> i) & 1) {
-                    push = i;
-                    break;
-                }
-            }
-            printf("push : %d\n", push);
-            printf("\nmulMs : \n");
-            for (int i = 15; i >= 0; i--) {
-                printf("%d",(mulMs >> i) & 1);
-            }
-            printf("\n");
-            mulMs ^= 1 << push;
-            mulMs <<= (10-push);
-            for (int i = 9; i >= 0; i--) {
-                printf("%d",(mulMs >> i) & 1);
-                result |= ((mulMs >> i) & 1) << i;
-            }
-            printf("\nresult : \n");
-            for(int i = 15; i >= 0; i--) {
-                printf("%d",(result >> i) & 1);
-            }
-            printf("\n");
-            int exp = push+15; //push 10-25, 9-24, 7-22
-            printf("\nexp : %d\n", exp);
-            for (int i = 4; i >= 0; i--) {
-                printf("%d", (exp >> i) & 1);
-                result |= ((exp >> i) & 1) << (i+10);
-            }
+        */
+        printf("\npush : %d\n", push);
+        int exp = aE+bE+15;
+        printf("exp : %d\n", exp);
+        if (push - ((10-pushA) + (10-pushB))) {
+            exp += (push - ((10-pushA) + (10-pushB)));
         }
+        printf("exp : %d\n", exp);
+        printf("aE + bE : %d\n", aE+bE);
+        mulMs ^= 1 << push;
+        printf("mulMs : %s\n", sfp2bits(mulMs));
+        mulMs <<= (10-push);
+        printf("mulMs : %s\n", sfp2bits(mulMs));
+        applyExp(&result, exp);
+        applyFrac(&result, mulMs);
+        printf("result : %s\n", sfp2bits(result));
     }
     
     else if (aexp == 0 && bexp == 0) { //둘다 demormal
