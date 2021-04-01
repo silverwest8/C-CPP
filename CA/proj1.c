@@ -299,6 +299,21 @@ int I_im(char inst[]) {
     }
     return im;
 }
+int I_label(char inst[]) {
+    char result[16] = "";
+    substring(inst, result, 16, 16);
+    int label = 0;
+    for (int i = 15; i >= 0; i--) {
+        if (result[i]) {
+            if (i == 0) {
+                label -= (result[i]-48) << (15-i);
+            } else {
+                label += (result[i]-48) << (15-i);
+            }
+        }
+    }
+    return label;
+}
 int J_opcodeCheck(char inst[]) {
     char result[6] = "";
     substring(inst, result, 0, 6);
