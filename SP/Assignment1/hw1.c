@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
 		sfpbits2[idx] = sfp2bits(sf2[idx]);
 		fprintf(fp_output, "%s\n", sfpbits2[idx]);
 		printf("float(%f) => sfp(%s), ", f, sfpbits2[idx]);
+		printf("%s, ", sfpbits_ans);
 		if(!strcmp(sfpbits2[idx], sfpbits_ans))
 			printf("CORRECT\n");
 		else
@@ -82,6 +83,7 @@ int main(int argc, char *argv[])
 		f = sfp2float(sf2[idx]);
 		fprintf(fp_output, "%f\n", f);
 		printf("sfp(%s) => float(%f), ", sfpbits2[idx], f);
+		printf("%f, ", f_ans);
 		if(f == f_ans)
 			printf("CORRECT\n");
 		else
@@ -99,6 +101,7 @@ int main(int argc, char *argv[])
 			fscanf(fp_answer, "%s", sfpbits_ans);
 			fprintf(fp_output, "%s\n", resultbits);
 			printf("%s + %s = %s, ", sfpbits1[x], sfpbits1[y], resultbits);
+			printf("%s, ", sfpbits_ans);
 			if(!strcmp(resultbits, sfpbits_ans))
 				printf("CORRECT\n");
 			else
@@ -114,6 +117,7 @@ int main(int argc, char *argv[])
 			fscanf(fp_answer, "%s", sfpbits_ans);
 			fprintf(fp_output, "%s\n", resultbits);
 			printf("%s + %s = %s, ", sfpbits2[x], sfpbits2[y], resultbits);
+			printf("%s, ", sfpbits_ans);
 			if(!strcmp(resultbits, sfpbits_ans))
 				printf("CORRECT\n");
 			else
@@ -129,6 +133,7 @@ int main(int argc, char *argv[])
 			fscanf(fp_answer, "%s", sfpbits_ans);
 			fprintf(fp_output, "%s\n", resultbits);
 			printf("%s + %s = %s, ", sfpbits1[x], sfpbits2[y], resultbits);
+			printf("%s, ", sfpbits_ans);
 			if(!strcmp(resultbits, sfpbits_ans))
 				printf("CORRECT\n");
 			else
@@ -148,6 +153,7 @@ int main(int argc, char *argv[])
 			fscanf(fp_answer, "%s", sfpbits_ans);
 			fprintf(fp_output, "%s\n", resultbits);
 			printf("%s * %s = %s, ", sfpbits1[x], sfpbits1[y], resultbits);
+			printf("%s, ", sfpbits_ans);
 			if(!strcmp(resultbits, sfpbits_ans))
 				printf("CORRECT\n");
 			else
@@ -163,6 +169,7 @@ int main(int argc, char *argv[])
 			fscanf(fp_answer, "%s", sfpbits_ans);
 			fprintf(fp_output, "%s\n", resultbits);
 			printf("%s * %s = %s, ", sfpbits2[x], sfpbits2[y], resultbits);
+			printf("%s, ", sfpbits_ans);
 			if(!strcmp(resultbits, sfpbits_ans))
 				printf("CORRECT\n");
 			else
@@ -178,6 +185,7 @@ int main(int argc, char *argv[])
 			fscanf(fp_answer, "%s", sfpbits_ans);
 			fprintf(fp_output, "%s\n", resultbits);
 			printf("%s * %s = %s, ", sfpbits1[x], sfpbits2[y], resultbits);
+			printf("%s, ", sfpbits_ans);
 			if(!strcmp(resultbits, sfpbits_ans))
 				printf("CORRECT\n");
 			else
