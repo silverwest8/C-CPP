@@ -1,106 +1,114 @@
 #define MAX_PLAIN_LEN 500000
-#define BLOCK_SIZE 16
-#define BUFSIZE 64
+#define DES_BLOCK_SIZE 8
+#define AES_BLOCK_SIZE 16
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <openssl/aes.h>
 #include <openssl/des.h>
 #include <openssl/rand.h>
-
-void print_data(const char *tittle, const void* data, int len) {
-	printf("%s : ", tittle);
-	const unsigned char * p = (const unsigned char*)data;
-	int i = 0;
-	for (; i<len; ++i) {
-		printf("%02X ", *p++);
-    }
-	printf("\n");
-}
+//DES encryption => AES encryption => Base64 encoding.
 
 int main () {
-    FILE * fp_input = fopen("PlaintextCiphertext.txt", "r");
+    FILE * fp_input = fopen("/Users/choeeunseo/C-CPP/CS/Assignment2/PlaintextCiphertext.txt", "r");
     FILE * fp_output = fopen("keys.txt", "w");
     char plaintxt[100];
     char ciphertxt[100];
-    char block[9][100];
-    // char key1[8] = "coders"; // 64bits
-    // char key2[16] = "piewtf"; //128bits
-    while (feof(fp_input) == 0) {
+
+    //예외처리
+    if (fp_input == NULL) {
+        return -1;
+    }
+
+    //파일 컨텐츠 읽기 및 복사
+    int txtLen = 0;
+    int DESblockNum = 0;
+    int AESlen = 0;
+    while (1) {
         fgets(plaintxt, 100, fp_input);
         printf("%s\n", plaintxt);
+        txtLen = (int)strlen(plaintxt);
         fgets(ciphertxt, 100, fp_input);
         printf("%s\n", ciphertxt);
-    }
-    printf("\n");
-    int idx = 0;
-    while (idx < strlen(plaintxt)) {
-        for (int i = 0; i < strlen(plaintxt)/8+1; i++) {
-            for (int j = 0; j < 8; j++) {
-                if (plaintxt[idx] != '\n') {
-                    block[i][j] = plaintxt[idx];
-                } else {
-                    block[i][j] = '\0';
-                }
-                idx++;
-            }
-            block[i][8] = '\0';
-            printf("%s\n", block[i]);
+        if (feof(fp_input) != 0) {
+            break;
         }
     }
-    char in[BUFSIZE], out[BUFSIZE];
-    char *e = out;
-    memset(in, 0, sizeof(in));
-    memset(out, 0, sizeof(out));
-    DES_cblock key = "coders"; // 하나씩 대입해보자(64비트)
-    DES_key_schedule keysched; // 8비트를 빼자(56비트)
-    DES_set_key((DES_cblock *)key, &keysched);
+    printf("\ntxtLen : %d\n", txtLen);
+    DESblockNum = ceil((float)txtLen/8);
+    AESlen = DESblockNum*DES_BLOCK_SIZE;
+    printf("DESblockNum : %d\n", DESblockNum);
+    printf("AESlen : %d\n", AESlen);
 
-    for (int i = 0; i < 8; i++) {
-        /* 8 bytes of plaintext */
-        strcpy(in, block[i]);
-    
-        printf("Plaintext: [%s]\n", in);
-        DES_ecb_encrypt((DES_cblock *)in,(DES_cblock *)out, &keysched, DES_ENCRYPT);
-    
-        printf("Ciphertext:");
-        while (*e) printf("[%02x] ", *e++);
+    //block 생성
+    unsigned char DESblock[10][10];
+    unsigned char AESblock[100];
+    for (int i = 0; i < DESblockNum; i++) {
+        for (int j = 0; j < 8; j++) {
+            if (plaintxt[i*8+j] != '\n') {
+                DESblock[i][j] = plaintxt[i*8+j];
+                printf("%c", DESblock[i][j]);
+            } else {
+                DESblock[i][j] = '\0';
+            }
+        }
         printf("\n");
     }
 
-    /* AES key for Encryption and Decryption */
-    const static unsigned char aes_key[]={0x00,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xAA,0xBB,0xCC,0xDD,0xEE,0xFF};
-    /* Input data to encrypt */
-    unsigned char aes_input[]={0x0,0x1,0x2,0x3,0x4,0x5};
+    //DES
+    //암호화용 배열 생성
+    unsigned char  in[DES_BLOCK_SIZE];
+    unsigned char out[DES_BLOCK_SIZE];
+    unsigned char* e = out;
+    //키 생성
+    DES_cblock key = "coders"; // 하나씩 대입해보자(64비트)
+    DES_key_schedule keysched; // 8비트를 빼자(56비트)
+    DES_set_key((DES_cblock *)key, &keysched);
+    //Encrypt
+    int idx=0;
+    for (int i = 0; i < DESblockNum; i++) {
+        for (int j = 0; j < 8; j++) {
+            in[j] = DESblock[i][j];
+        }
+        printf("\nPlaintext(in): ");
+        for (int j = 0; j < 8; j++) {
+            printf("%c", DESblock[i][j]);
+        }
+        DES_ecb_encrypt((DES_cblock *)in,(DES_cblock *)out, &keysched, DES_ENCRYPT);
+        printf("\n");
+        printf("Ciphertext(out): ");
+        for (int j = 0; j < 8; j++) {
+            AESblock[idx++] = *e+j;
+            printf("[%02x] ", *e+j);
+        }
+        printf("\n\nidx : %d\n", idx);
+    }
+/*
+    //AES
+    //암호화용 배열 생성
+    const unsigned char* aes_input = AESblock;
+    unsigned char aes_output[sizeof(aes_input)];
+    unsigned char* hex = aes_output;
+    // 키 생성
+    const static unsigned char aes_key[]="piewtf";
+    AES_KEY enc_key;
+    AES_set_encrypt_key(aes_key, sizeof(aes_key)*8, &enc_key);
     
-    /* Init vector */
+    // Init vector 세팅
     unsigned char iv[AES_BLOCK_SIZE];
     memset(iv, 0x00, AES_BLOCK_SIZE);
     
-    /* Buffers for Encryption and Decryption */
-    unsigned char enc_out[sizeof(aes_input)];
-    unsigned char dec_out[sizeof(aes_input)];
-    
-    /* AES-128 bit CBC Encryption */
-    AES_KEY enc_key, dec_key;
-    AES_set_encrypt_key(aes_key, sizeof(aes_key)*8, &enc_key);
-    AES_cbc_encrypt(aes_input, enc_out, sizeof(aes_input), &enc_key, iv, AES_ENCRYPT);
-    /* AES-128 bit CBC Decryption */
-    memset(iv, 0x00, AES_BLOCK_SIZE); // don't forget to set iv vector again, else you can't decrypt data properly
-    AES_set_decrypt_key(aes_key, sizeof(aes_key)*8, &dec_key); // Size of key is in bits
-    AES_cbc_encrypt(enc_out, dec_out, sizeof(aes_input), &dec_key, iv, AES_DECRYPT);
-    
-    /* Printing and Verifying */
-    // you can not print data as a string, because after Encryption its not ASCII
-    print_data("\n Original ",aes_input, sizeof(aes_input));
-    print_data("\n Encrypted",enc_out, sizeof(enc_out));    
-    print_data("\n Decrypted",dec_out, sizeof(dec_out));
- 
+    AES_cbc_encrypt(aes_input, aes_output, sizeof(aes_input), &enc_key, iv, AES_ENCRYPT);
+*/
+
     //쓰기
     // fprintf(fp_output, "%s\n", key1);
     // fprintf(fp_output, "%s", key2);
     // fprintf(fp_output, "%c", ch);
-    fclose(fp_input);
-    fclose(fp_output);
+    if(fp_input) fclose(fp_input);
+    if(fp_output) fclose(fp_output);
+    
     return 0;
 }
