@@ -18,9 +18,9 @@ int main(int argc, char *argv[])
 	char **sfpbits2;
 	char sfpbits_ans[17];
 
-	fp_input = fopen("input.txt", "r");
-	fp_output = fopen("output.txt", "w");
-	fp_answer = fopen("answer.txt", "r");
+	fp_input = fopen("input2.txt", "r");
+	fp_output = fopen("output2.txt", "w");
+	fp_answer = fopen("answer2.txt", "r");
 
 	printf("Test 1: casting from int to sfp\n");
 	fscanf(fp_input, "%d", &case_num1);
@@ -33,7 +33,6 @@ int main(int argc, char *argv[])
 		sfpbits1[idx] = sfp2bits(sf1[idx]);
 		fprintf(fp_output, "%s\n", sfpbits1[idx]);
 		printf("int(%d) => sfp(%s), ", i, sfpbits1[idx]);
-		printf("%s, ", sfpbits_ans);
 		if(!strcmp(sfpbits1[idx], sfpbits_ans))
 			printf("CORRECT\n");
 		else
@@ -48,7 +47,6 @@ int main(int argc, char *argv[])
 		i = sfp2int(sf1[idx]);
 		fprintf(fp_output, "%d\n", i);
 		printf("sfp(%s) => int(%d), ", sfpbits1[idx], i);
-		printf("%d, ", i_ans);
 		if(i == i_ans)
 			printf("CORRECT\n");
 		else
@@ -68,7 +66,6 @@ int main(int argc, char *argv[])
 		sfpbits2[idx] = sfp2bits(sf2[idx]);
 		fprintf(fp_output, "%s\n", sfpbits2[idx]);
 		printf("float(%f) => sfp(%s), ", f, sfpbits2[idx]);
-		printf("%s, ", sfpbits_ans);
 		if(!strcmp(sfpbits2[idx], sfpbits_ans))
 			printf("CORRECT\n");
 		else
@@ -83,7 +80,6 @@ int main(int argc, char *argv[])
 		f = sfp2float(sf2[idx]);
 		fprintf(fp_output, "%f\n", f);
 		printf("sfp(%s) => float(%f), ", sfpbits2[idx], f);
-		printf("%f, ", f_ans);
 		if(f == f_ans)
 			printf("CORRECT\n");
 		else
@@ -93,6 +89,7 @@ int main(int argc, char *argv[])
 	printf("\n");
 
 	printf("Test 5: Addition\n");
+	printf("5-1\n");
 	for(x = 0; x < case_num1; x++) {
 		for(y = x; y < case_num1; y++) {
 			sfp result = sfp_add(sf1[x], sf1[y]);
@@ -101,7 +98,7 @@ int main(int argc, char *argv[])
 			fscanf(fp_answer, "%s", sfpbits_ans);
 			fprintf(fp_output, "%s\n", resultbits);
 			printf("%s + %s = %s, ", sfpbits1[x], sfpbits1[y], resultbits);
-			printf("%s, ", sfpbits_ans);
+			printf("%s, ",sfpbits_ans);
 			if(!strcmp(resultbits, sfpbits_ans))
 				printf("CORRECT\n");
 			else
@@ -109,6 +106,7 @@ int main(int argc, char *argv[])
 			free(resultbits);
 		}
 	}
+	printf("5-2\n");
 	for(x = 0; x < case_num2; x++) {
 		for(y = x; y < case_num2; y++) {
 			sfp result = sfp_add(sf2[x], sf2[y]);
@@ -117,7 +115,7 @@ int main(int argc, char *argv[])
 			fscanf(fp_answer, "%s", sfpbits_ans);
 			fprintf(fp_output, "%s\n", resultbits);
 			printf("%s + %s = %s, ", sfpbits2[x], sfpbits2[y], resultbits);
-			printf("%s, ", sfpbits_ans);
+			printf("%s, ",sfpbits_ans);
 			if(!strcmp(resultbits, sfpbits_ans))
 				printf("CORRECT\n");
 			else
@@ -125,6 +123,7 @@ int main(int argc, char *argv[])
 			free(resultbits);
 		}
 	}
+	printf("5-3\n");
 	for(x = 0; x < case_num1; x++) {
 		for(y = 0; y < case_num2; y++) {
 			sfp result = sfp_add(sf1[x], sf2[y]);
@@ -133,7 +132,7 @@ int main(int argc, char *argv[])
 			fscanf(fp_answer, "%s", sfpbits_ans);
 			fprintf(fp_output, "%s\n", resultbits);
 			printf("%s + %s = %s, ", sfpbits1[x], sfpbits2[y], resultbits);
-			printf("%s, ", sfpbits_ans);
+			printf("%s, ",sfpbits_ans);
 			if(!strcmp(resultbits, sfpbits_ans))
 				printf("CORRECT\n");
 			else
@@ -145,6 +144,7 @@ int main(int argc, char *argv[])
 	printf("\n");
 	
 	printf("Test 6: Multiplication\n");
+	printf("6-1\n");
 	for(x = 0; x < case_num1; x++) {
 		for(y = x; y < case_num1; y++) {
 			sfp result = sfp_mul(sf1[x], sf1[y]);
@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
 			fscanf(fp_answer, "%s", sfpbits_ans);
 			fprintf(fp_output, "%s\n", resultbits);
 			printf("%s * %s = %s, ", sfpbits1[x], sfpbits1[y], resultbits);
-			printf("%s, ", sfpbits_ans);
+			printf("%s, ",sfpbits_ans);
 			if(!strcmp(resultbits, sfpbits_ans))
 				printf("CORRECT\n");
 			else
@@ -161,6 +161,7 @@ int main(int argc, char *argv[])
 			free(resultbits);
 		}
 	}
+	printf("6-2\n");
 	for(x = 0; x < case_num2; x++) {
 		for(y = x; y < case_num2; y++) {
 			sfp result = sfp_mul(sf2[x], sf2[y]);
@@ -169,7 +170,7 @@ int main(int argc, char *argv[])
 			fscanf(fp_answer, "%s", sfpbits_ans);
 			fprintf(fp_output, "%s\n", resultbits);
 			printf("%s * %s = %s, ", sfpbits2[x], sfpbits2[y], resultbits);
-			printf("%s, ", sfpbits_ans);
+			printf("%s, ",sfpbits_ans);
 			if(!strcmp(resultbits, sfpbits_ans))
 				printf("CORRECT\n");
 			else
@@ -177,6 +178,7 @@ int main(int argc, char *argv[])
 			free(resultbits);
 		}
 	}
+	printf("6-3\n");
 	for(x = 0; x < case_num1; x++) {
 		for(y = 0; y < case_num2; y++) {
 			sfp result = sfp_mul(sf1[x], sf2[y]);
@@ -185,7 +187,7 @@ int main(int argc, char *argv[])
 			fscanf(fp_answer, "%s", sfpbits_ans);
 			fprintf(fp_output, "%s\n", resultbits);
 			printf("%s * %s = %s, ", sfpbits1[x], sfpbits2[y], resultbits);
-			printf("%s, ", sfpbits_ans);
+			printf("%s, ",sfpbits_ans);
 			if(!strcmp(resultbits, sfpbits_ans))
 				printf("CORRECT\n");
 			else

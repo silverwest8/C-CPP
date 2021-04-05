@@ -156,6 +156,7 @@ int main () {
 	unsigned char aes_input[idx];
     for (int i = 0; i < idx; i++) {
         aes_input[i] = AESblock[i];
+        printf("%c", aes_input[i]);
     }
 	
 	/* Init vector */

@@ -43,8 +43,7 @@ int getExp(sfp input) {
     exp = 0;
     for (int i = 14; i >= 10; i--) {
         if (input >> i & 1) {
-            temp = 0;
-            temp |= 1;
+            temp = 1;
             temp <<= i-10;
             exp += temp;
         }
@@ -60,17 +59,29 @@ sfp getFrac(sfp input) {
     return frac;
 }
 
+int isFrac1(sfp input) {
+    for (int i = 0; i >= 0; i--) {
+        if ((input >> i) & 1) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 void getInfo(sfp input, int *sign, int *exp, int *E) {
     int temp;
     *exp = 0;
     *sign = getSign(input);
     *exp = getExp(input);
+    if (*exp == 0) {
+        *E = -14;
+    }
     *E = *exp - 15;
 }
 
 int specialCheck(sfp input) {
     if (getExp(input) == 31) {
-        if (getFrac(input) == 0) {
+        if (isFrac1(input) == 0) {
             if (getSign(input)) {
                 return -1; //-infinity
             } else {
@@ -81,7 +92,7 @@ int specialCheck(sfp input) {
         }
     }
     else if (getExp(input) == 0) {
-        if (getFrac(input) == 0) {
+        if (isFrac1(input) == 0) {
             return -2; //ZERO
         } else {
             // return -2; //demormal
@@ -112,14 +123,22 @@ sfp int2sfp(int input) {
     if (input == 0) {
         return result;
     }
-    //부호체크
-    if ((input >> 31) & 1) {
+    int maxsfp =  65504;
+    int minsfp = -65504;
+    if (input > maxsfp) {
+        return getinfinitP();
+    }
+    else if (input < minsfp) {
+        return getinfinitM();
+    }
+    if ((input >> 31) & 1) { //부호체크
         applySign(&result, 1);
+        input = (~input) + 1;
     }
     //exp 체크 //2진수 변경 //만 백..?
     int E = 0;
     int exp = 0;
-    int bias = 15; //e가 14부터는 demormal
+    int bias = 15;
     for(int i = 30; i >= 0; i--) {
         if((input >> i) & 1) {
             E = i;
@@ -127,41 +146,27 @@ sfp int2sfp(int input) {
             break;
         }
 	}
-    int maxsfp =  65504;
-    int minsfp = -65504;
-    if (input > maxsfp) {
-        printf("maximum of sfp\n");
-        return getinfinitP();
-    }
-    else if (input < minsfp) {
-        return getinfinitM();
-    }
-    else if (E <= 10) {
-        input ^= (1>>E);
-        input <<= (10-E);
-        applyExp(&result, exp);
-        //frac 설정
-        for (int i = 9; i >= 0; i--) {
-            result |= (((input >> i) & 1) << i);
-        }
+    applyExp(&result, exp);
+    if (E <= 10) {
+        input ^= (1>>E); //leading 1
+        input <<= (10-E); //frac첫부분으로 이동
     }
     else if (E > 10) {
-        input >>= (E-10);
-        applyExp(&result, exp);
-        //frac 설정
-        for (int i = 9; i >= 0; i--) {
-            result |= (((input >> i) & 1) << i);
-        }
+        input >>= (E-10); //frac첫부분으로 이동
+    }
+    //frac 설정
+    for (int i = 9; i >= 0; i--) {
+        result |= (((input >> i) & 1) << i);
     }
 	return result;
 }
 //2
 int sfp2int(sfp input) {
     int result = 0;
-    int Tmin = 1;
-    Tmin <<= 31;
-    int Tmax = 1;
+    int Tmax = 1; //2147483647
+    int Tmin = 1; //-2147483648
     Tmax <<= 31;
+    Tmin <<= 31;
     Tmax--;
     if (input == getinfinitP()) {
         return Tmax;
@@ -175,16 +180,12 @@ int sfp2int(sfp input) {
 
     //exp = E + bias
     int exp = getExp(input);
-    //round toward zero
     //frac
-    if (exp == 0) {
-        return 0;
+    if (exp < 15) { //round toward zero
+        return result;
     }
-    else if (exp > 0 && exp < 31) {
+    else if (exp >= 15 && exp < 31) {
         int E = exp - 15;
-        if (E < 0) {
-            return 0;
-        }
         int push;
         for (int i = 9; i >= 0; i--) {
             if ((input >> i) & 1) {
@@ -195,10 +196,14 @@ int sfp2int(sfp input) {
             result |= ((input >> i) & 1) << i;
         }
         result <<= E;
-        result |= (1 << (E+10));
+        result |= (1 << (E+10)); //leading 1
         result >>= 10;
         //부호
-        result |= ((input >> 15) & 1) << 31;
+        if ((input>>15) & 1) {
+            result--;
+            result = ~result;
+            result |= ((input >> 15) & 1) << 31;
+        }
     }
     return result;
 }
@@ -206,8 +211,8 @@ int sfp2int(sfp input) {
 sfp float2sfp(float input) {
     sfp result = 0;
     unsigned save = *(unsigned *)&input;
-    if (input == 0) {
-        return result;
+    for(int i = 31; i >= 0; i--) {
+        printf("%d", (save >> i) &1);
     }
     int maxsfp =  65504;
     int minsfp = -65504;
@@ -219,46 +224,26 @@ sfp float2sfp(float input) {
     }
     //exp
     int fexp = 0;
-    int fE = 0;
-    int temp = 0;
+    int sfpexp = 0;
+    int E = 0;
     for (int i = 30; i >= 23; i--) {
         if (save >> i & 1) {
-            temp = 0;
+            int temp = 0;
             temp |= 1;
             temp <<= i-23;
             fexp += temp;
         }
     }
-    fE = fexp - 127;
-
-    if (fexp == 0) { //float demormal
-        fE = 1-127;
+    if (fexp == 0) {
+        return result;
     }
-    else {
-        fE = fexp - 127;
-    }
-    int sfpexp = fE + 15;
-    int sfpE = 0;
-    if (sfpexp < 0) {
-        //round toward zero
-    }
-    else if (sfpexp > 31) {
-        //round toward zero
-        //+-무한대
-    }
-    else if (sfpexp == 0) { //demormal
-        sfpE = 1 - 15;
-    }
-    else if (sfpexp == 31) { //special
-
-    }
-    else {
-        //exp
-        applyExp(&result, sfpexp);
-        //frac
-        for(int i = 22; i >= 13; i--) {
-            result |= ((save >> i) & 1) << (i-13);
-        }
+    E = fexp - 127;
+    sfpexp = E + 15;
+    //exp
+    applyExp(&result, sfpexp);
+    //frac
+    for(int i = 22; i >= 13; i--) {
+        result |= ((save >> i) & 1) << (i-13);
     }
     //부호체크
     if ((save >> 31) & 1) {
@@ -332,219 +317,164 @@ sfp sfp_add(sfp a, sfp b) {
             return b;
         }
     }
+    else if ((aCheck == -2 && bCheck == 0) || (aCheck == 0 && bCheck == -2)) {
+        if (aCheck == -2) {
+            return b;
+        }
+        else {
+            return a;
+        }
+    }
+    else if (aCheck == -2 && bCheck == -2) {
+        return a;
+    }
 
     sfp calaM = 0;
     sfp calbM = 0;
     sfp sumMs = 0;
 
-    if ((aexp > 0 && aexp < 31) && (bexp > 0 && bexp < 31)) { //둘 다 normal
-        //------------------------------------//
-        //aFrac 계산
-        int pushA = 0;
-        for (int i = 9; i >= 0; i--) {
-            if (a >> i & 1) {
-                pushA = i;
-            }
-        }
-        for (int i = 9; i >= 0; i--) {
-            calaM |= ((a >> i) & 1) << (i-pushA);
-        }
+    //aFrac 계산
+    int pushA = 0;
+    for (int i = 9; i >= 0; i--) { if (a >> i & 1) { pushA = i; } }
+    for (int i = 9; i >= 0; i--) { calaM |= ((a >> i) & 1) << (i-pushA); }
+    
+    //bFrac 계산
+    int pushB = 0;
+    for (int i = 9; i >= 0; i--) { if (b >> i & 1) { pushB = i; } }
+    for (int i = 9; i >= 0; i--) { calbM |= ((b >> i) & 1) << (i-pushB); }
+    
+    if ((aexp != 0) && (bexp != 0)) { //둘 다 normal
         calaM |= 1 << (10-pushA);
-        //bFrac 계산
-        int pushB = 0;
-        for (int i = 9; i >= 0; i--) {
-            if (b >> i & 1) {
-                pushB = i;
-            }
-        }
-        for (int i = 9; i >= 0; i--) {
-            calbM |= ((b >> i) & 1) << (i-pushB);
-        }
         calbM |= 1 << (10-pushB);
-        //------------------------------------//
-        if (aexp > bexp) { //a의 exp가 더 클 경우
-            int gap = aexp - bexp;
-            if (getSign(a) == getSign(b)) { //둘 다 양수거나 음수
-                if (getSign(a)) {
-                    applySign(&result, 1);
-                }
-                calaM <<= gap-(pushB-pushA);
-                sumMs = calaM + calbM;
-                int push = 0;
-                for (int i = 15; i >= 0; i--) {
-                    if ((sumMs >> i) & 1) {
-                        push = i;
-                        break;
-                    }
-                }
-                sumMs ^= 1 << push;
-                sumMs <<= (10-push);
-                applyFrac(&result, sumMs);
-                applyExp(&result, aexp);
-            }
-            else if (getSign(a) ^ getSign(b)) { //둘 중 하나만 양수
-                if(getSign(a)) { //a만 음수
-
-                } else { //b만 음수
-                    calaM <<= gap-(pushB-pushA);
-                    sumMs = calaM - calbM;
-                    for (int i = 9; i >= 0; i--) {
-                        if ((sumMs >> i) & 1) {
-                            sumMs ^= 1 << i;
-                            sumMs <<= 10-i;
-                            break;
-                        }
-                    }
-                    applyFrac(&result, sumMs);
-                    applyExp(&result, aexp);
-                }
-            }
-        }
-        //------------------------------------//
-        else if (aexp < bexp) { //b의 exp가 더 클 경우
-            int gap = bexp - aexp;
-            if (getSign(a) == getSign(b)) { //둘다 양수거나 음수
-                if (getSign(a)) {
-                    applySign(&result, 1);
-                }
-                calaM <<= gap-(pushB-pushA);
-                sumMs = calaM + calbM;
-                int push = 0;
-                for (int i = 15; i >= 0; i--) {
-                    if ((sumMs >> i) & 1) {
-                        push = i;
-                        break;
-                    }
-                }
-                sumMs ^= 1 << push;
-                sumMs <<= (10-push);
-                applyFrac(&result, sumMs);
-                applyExp(&result, aexp);
-            }
-            else if (getSign(a) ^ getSign(b)) { //둘 중 하나만 양수
-                if (getSign(a)) { //a만 음수
-                }
-                else { //b만 음수
-                    applySign(&result, 1);
-                    calbM <<= gap;
-                    sumMs = calbM - calaM;
-                    int push = 0;
-                    for (int i = 9; i >= 0; i--) {
-                        if ((sumMs >> i) & 1) {
-                            push = 10-i;
-                            break;
-                        }
-                    }
-                    sumMs ^= 1 << push;
-                    for (int i = 9; i >= 0; i--) {
-                        result |= ((sumMs >> i) & 1) << (i+push);
-                    }
-                    bexp--;
-                    for(int i = 4; i >= 0; i--) {
-                        result |= ((bexp >> i) & 1) << (i+10);
-                    }
-                }
-            }
-        }
-        //------------------------------------//
-        else { //같은 경우
-            if (getSign(a) == getSign(b)) { //둘다 양수거나 음수
-                if (getSign(a)) {
-                    applySign(&result, 1);
-                }
-            }
-            else if (getSign(a) ^ getSign(b)) {
-                if (getSign(a)) { //a만 음수
-                }
-                else { // b만 음수
-                }
-            }
-            sumMs = calaM + calbM;
-            int push = 0;
-            int first1 = 0;
-            for (int i = 9; i >= 0; i--) {
-                if ((sumMs >> i) & 1) {
-                    push = 10-i;
-                    first1 = i;
-                    break;
-                }
-            }
-            sumMs ^= 1 << first1;
-            for (int i = 9; i >= 0; i--) {
-                result |= ((sumMs >> i) & 1) << (i+push);
-            }
-            aexp++;
-            for(int i = 4; i >= 0; i--) {
-                result |= ((aexp >> i) & 1) << (i+10);
-            }
+    }
+    else if (aexp == 0 && bexp == 0) { //둘다 demormal
+    }
+    else if (aexp == 0 || bexp == 0) { //둘중 하나만 denormal
+        if (aexp == 0) {
+            calbM |= 1 << (10-pushB);
+        } else {
+            calbM |= 1 << (10-pushB);
         }
     }
 
-    else if (aexp == 0 && bexp == 0) { //둘다 demormal
-        //------------------------------------//
-        for (int i = 9; i >= 0; i--) {
-            calaM |= ((a >> i) & 1) << (i-10+aE); 
-        }
-        for (int i = 9; i >= 0; i--) {
-            calbM |= ((b >> i) & 1) << (i-10+bE); 
-        }
-        //------------------------------------//
-        if (aexp == bexp) { //같은 경우
+    if (aexp > bexp) { //a의 exp가 더 클 경우
+        int gap = aexp - bexp;
+        if (getSign(a) == getSign(b)) { //둘 다 양수거나 음수
+            if (getSign(a)) {
+                applySign(&result, 1);
+            }
+            calaM <<= gap-(pushB-pushA);
             sumMs = calaM + calbM;
             int push = 0;
-            for (int i = 9; i >= 0; i--) {
+            for (int i = 15; i >= 0; i--) {
                 if ((sumMs >> i) & 1) {
-                    push = 10-i;
-                    break;
-                }
-            }
-            for (int i = 9; i >= 0; i--) {
-                result |= ((sumMs >> i) & 1) << (i+push);
-            }
-            aexp ++;
-            for(int i = 4; i >= 0; i--) {
-                result |= ((aexp >> i) & 1) << (i+10);
-            }
-        }
-        //------------------------------------//
-        else if (aexp > bexp) { //a의 exp가 더 클 경우
-            int gap = aexp - bexp;
-            sumMs = calaM + calbM;
-            int push = 0;
-            for (int i = 9; i >= 0; i--) {
-                if ((sumMs >> i) & 1) {
-                    push = 10-i;
+                    push = i;
                     break;
                 }
             }
             sumMs ^= 1 << push;
-            for (int i = 9; i >= 0; i--) {
-                result |= ((sumMs >> i) & 1) << (i+push);
-            }
-            for(int i = 4; i >= 0; i--) {
-                result |= ((aexp >> i) & 1) << (i+10);
+            sumMs <<= (10-push);
+            applyFrac(&result, sumMs);
+            applyExp(&result, aexp);
+        }
+        else if (getSign(a) ^ getSign(b)) { //둘 중 하나만 양수
+            if(getSign(a)) { //a만 음수
+
+
+            } else { //b만 음수
+                calaM <<= gap-(pushB-pushA);
+                sumMs = calaM - calbM;
+                for (int i = 9; i >= 0; i--) {
+                    if ((sumMs >> i) & 1) {
+                        sumMs ^= 1 << i;
+                        sumMs <<= 10-i;
+                        break;
+                    }
+                }
+                applyFrac(&result, sumMs);
+                applyExp(&result, aexp);
             }
         }
-        //------------------------------------//
-        else if (aexp < bexp) { //b의 exp가 더 클 경우
-            int gap = bexp - aexp;
+    }
+    //------------------------------------//
+    else if (aexp < bexp) { //b의 exp가 더 클 경우
+        int gap = bexp - aexp;
+        if (getSign(a) == getSign(b)) { //둘다 양수거나 음수
+            if (getSign(a)) {
+                applySign(&result, 1);
+            }
+            calaM <<= gap-(pushB-pushA);
             sumMs = calaM + calbM;
             int push = 0;
-            for (int i = 9; i >= 0; i--) {
+            for (int i = 15; i >= 0; i--) {
                 if ((sumMs >> i) & 1) {
-                    push = 10-i;
+                    push = i;
                     break;
                 }
             }
             sumMs ^= 1 << push;
-            for (int i = 9; i >= 0; i--) {
-                result |= ((sumMs >> i) & 1) << (i+push);
+            sumMs <<= (10-push);
+            applyFrac(&result, sumMs);
+            applyExp(&result, aexp);
+        }
+        else if (getSign(a) ^ getSign(b)) { //둘 중 하나만 양수
+            if (getSign(a)) { //a만 음수
             }
-            for(int i = 4; i >= 0; i--) {
-                result |= ((aexp >> i) & 1) << (i+10);
+            else { //b만 음수
+                applySign(&result, 1);
+                calbM <<= gap;
+                sumMs = calbM - calaM;
+                int push = 0;
+                for (int i = 9; i >= 0; i--) {
+                    if ((sumMs >> i) & 1) {
+                        push = 10-i;
+                        break;
+                    }
+                }
+                sumMs ^= 1 << push;
+                for (int i = 9; i >= 0; i--) {
+                    result |= ((sumMs >> i) & 1) << (i+push);
+                }
+                bexp--;
+                for(int i = 4; i >= 0; i--) {
+                    result |= ((bexp >> i) & 1) << (i+10);
+                }
             }
         }
-        //------------------------------------//
+    }
+    //------------------------------------//
+    else { //같은 경우
+        if (getSign(a) == getSign(b)) { //둘다 양수거나 음수
+            if (getSign(a)) {
+                applySign(&result, 1);
+            }
+        }
+        else if (getSign(a) ^ getSign(b)) {
+            if (getSign(a)) { //a만 음수
+            }
+            else { // b만 음수
+            }
+        }
+        sumMs = calaM + calbM;
+        int push = 0;
+        int first1 = 0;
+        for (int i = 9; i >= 0; i--) {
+            if ((sumMs >> i) & 1) {
+                push = 10-i;
+                first1 = i;
+                break;
+            }
+        }
+        sumMs ^= 1 << first1;
+        for (int i = 9; i >= 0; i--) {
+            result |= ((sumMs >> i) & 1) << (i+push);
+        }
+        printf("result : %s\n", sfp2bits(result));
+        aexp++;
+        for(int i = 4; i >= 0; i--) {
+            result |= ((aexp >> i) & 1) << (i+10);
+        }
+        printf("%s\n", sfp2bits(result));
     }
 
     return result;
@@ -559,6 +489,7 @@ sfp sfp_mul(sfp a, sfp b){
 
     int aCheck = specialCheck(a);
     int bCheck = specialCheck(b);
+    ////예외인 경우
     if (aCheck == 1 && bCheck == 1) {
         return a;
     }
@@ -601,55 +532,61 @@ sfp sfp_mul(sfp a, sfp b){
             return b;
         }
     }
+    else if (aCheck == -2 || bCheck == -2) {
+        if (aCheck == -2) {
+            return a;
+        } else {
+            return b;
+        }
+    }
 
+    //예외가 아닌 경우
     sfp calaM = 0;
     sfp calbM = 0;
     sfp mulMs = 0;
 
-    //frac 곱하기
-    if ((aexp > 0 && aexp < 31) && (bexp > 0 && bexp < 31)) { //둘 다 normal
-        if(as != bs) {
-            applySign(&result, 1);
-        }
-        //aFrac 계산
-        int pushA = 0;
-        for (int i = 9; i >= 0; i--) {
-            if (a >> i & 1) {
-                pushA = i;
-            }
-        }
-        for (int i = 9; i >= 0; i--) { calaM |= ((a >> i) & 1) << (i-pushA); }
-        calaM |= 1 << (10-pushA);
-        //bFrac 계산
-        int pushB = 0;
-        for (int i = 9; i >= 0; i--) {
-            if (b >> i & 1) {
-                pushB = i;
-            }
-        }
-        for (int i = 9; i >= 0; i--) { calbM |= ((b >> i) & 1) << (i-pushB); }
-        calbM |= 1 << (10-pushB);
-        mulMs = calaM * calbM;
-        int push = 0;
-        for (int i = 15; i >= 0; i--) {
-            if ((mulMs >> i) & 1) {
-                push = i;
-                break;
-            }
-        }
-        int exp = aE+bE+15;
-        if (push - ((10-pushA) + (10-pushB))) {
-            exp += (push - ((10-pushA) + (10-pushB)));
-        }
-        mulMs ^= 1 << push;
-        mulMs <<= (10-push);
-        applyExp(&result, exp);
-        applyFrac(&result, mulMs);
-    }
+    int pushA = 0;
+    int pushB = 0;
+    //aFrac 계산
+    pushA = 0;
+    for (int i = 9; i >= 0; i--) { if (a >> i & 1) { pushA = i; } }
+    for (int i = 9; i >= 0; i--) { calaM |= ((a >> i) & 1) << (i-pushA); }
     
-    else if (aexp == 0 && bexp == 0) { //둘다 demormal
-        
+    //bFrac 계산
+    pushB = 0;
+    for (int i = 9; i >= 0; i--) { if (b >> i & 1) { pushB = i; } }
+    for (int i = 9; i >= 0; i--) { calbM |= ((b >> i) & 1) << (i-pushB); }
+    if (aexp != 0) {
+        if (pushA == 0) { pushA = 10; }
+        calaM |= 1 << (10-pushA);
+
     }
+    if (bexp != 0) {
+        if (pushB == 0) { pushB = 10; }
+        calbM |= 1 << (10-pushB);
+    }
+    //계산
+    //부호 다르면 -
+    if(as != bs) {
+        applySign(&result, 1);
+    }
+    //곱하기
+    mulMs = calaM * calbM;
+    int push = 0;
+    for (int i = 15; i >= 0; i--) {
+        if ((mulMs >> i) & 1) {
+            push = i;
+            break;
+        }
+    }
+    int exp = aE+bE+15;
+    if (push - ((10-pushA) + (10-pushB))) {
+        exp += (push - ((10-pushA) + (10-pushB)));
+    }
+    mulMs ^= 1 << push;
+    mulMs <<= (10-push);
+    applyExp(&result, exp);
+    applyFrac(&result, mulMs);
 
     return result;
 }
