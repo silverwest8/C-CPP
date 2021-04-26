@@ -447,9 +447,9 @@ int J_target(char inst[]) {
 }
 void Reg(unsigned int Registers[], int num) {
     for (int i = 0; i < 32; i++) {
-        printf("$%d: %08x\n", i, Registers[i]);
+        printf("$%d: 0x%08x\n", i, Registers[i]);
     }
-    printf("PC: %08x\n", num*4);
+    printf("PC: 0x%08x\n", num*4);
 }
 
 void Mem(unsigned char DataMem[][4], int startAddress) {
