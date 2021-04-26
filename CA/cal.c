@@ -4,7 +4,7 @@
 void substring(char inst[], char result[], int start, int len);
 int typeCheck(char inst[]);
 int R_funcCheck(char inst[], unsigned int Registers[]);
-int I_opcodeCheck(char inst[], unsigned int Register[], unsigned char Datamem[][4], int* num);
+int I_opcodeCheck(char inst[], unsigned int Registers[], unsigned char DataMem[][4], unsigned char InstMem[][4], int* num);
 int R_rd(char inst[]);
 int R_rs(char inst[]);
 int R_rt(char inst[]);
@@ -12,8 +12,9 @@ int R_sa(char inst[]);
 int I_rs(char inst[]);
 int I_rt(char inst[]);
 int I_im(char inst[]);
+int I_im_zeroEx(char inst[]);
 int I_label(char inst[]);
-int J_opcodeCheck(char inst[]);
+int J_opcodeCheck(char inst[], int* num);
 int J_target(char inst[]);
 void Reg(unsigned int Registers[], int num);
 void Mem(unsigned char DataMem[][4], int startAddress);
@@ -119,7 +120,7 @@ int R_funcCheck(char inst[], unsigned int Registers[]) {
     else if (strcmp(result, "101010") == 0) {
         ////////
         printf("slt ");
-        if (Registers[R_rs(inst)] < Registers[R_rt(inst)]) {
+        if ((signed)Registers[R_rs(inst)] < (signed)Registers[R_rt(inst)]) {
             Registers[R_rd(inst)] = 1;
         } else {
             Registers[R_rd(inst)] = 0;
@@ -168,13 +169,18 @@ int R_funcCheck(char inst[], unsigned int Registers[]) {
     }
     return 8;
 }
-int I_opcodeCheck(char inst[], unsigned int Registers[], unsigned char DataMem[][4], int* num) {
+int I_opcodeCheck(char inst[], unsigned int Registers[], unsigned char DataMem[][4], unsigned char InstMem[][4], int* num) {
     char result[6] = "";
     substring(inst, result, 0, 6);
     if (strcmp(result, "001000") == 0) {
         // 
         printf("addi ");
         Registers[I_rt(inst)] = Registers[I_rs(inst)] + I_im(inst);
+        printf("\n");
+        for (int i = 31; i >= 0; i --) {
+            printf("%d", (I_im(inst)>>i)&1);
+        }
+        printf("\n");
         return 0;
     }
     else if (strcmp(result, "001001") == 0) {
@@ -184,40 +190,80 @@ int I_opcodeCheck(char inst[], unsigned int Registers[], unsigned char DataMem[]
     else if (strcmp(result, "001100") == 0) {
         //
         printf("andi ");
-        Registers[I_rt(inst)] = (Registers[I_rs(inst)] & I_im(inst));
+        Registers[I_rt(inst)] = (Registers[I_rs(inst)] & I_im_zeroEx(inst));
         return 0;
     }
     else if (strcmp(result, "000100") == 0) {
         //
         printf("beq ");
+        if (Registers[I_rs(inst)] == Registers[I_rt(inst)]) {
+            *num+=(I_im(inst));
+        }
         return 1;
     }
     else if (strcmp(result, "000101") == 0) {
         //if(R[$rs] != R[$rt]) PC ← PC + 4 + SignExt18b({imm, 00})
         printf("bne ");
         if (Registers[I_rs(inst)] != Registers[I_rt(inst)]) {
-            *num+=I_im(inst);
+            *num+=(I_im(inst));
         }
         return 1;
     }
     else if (strcmp(result, "100000") == 0) {
-        //
+        //R[$rt] ← SignExt8b(Mem1B(R[$rs] + SignExt16b(imm)))
         printf("lb ");
+        unsigned int temp = 0;
+        temp |= DataMem[(Registers[I_rs(inst)]-(0x10000000)+I_im(inst))/4][I_im(inst) % 4];
+        if ((temp >> 7) & 1) {
+            temp |= 0xffffff00;
+        }
+        printf("\n");
+        for (int i = 31; i >= 0; i--) {
+            printf("%d", (temp>>i)&1);
+        }
+        printf("\n");
+        Registers[I_rt(inst)] = temp;
         return 2;
     }
     else if (strcmp(result, "100100") == 0) {
         //
         printf("lbu ");
+        unsigned int temp = 0;
+        temp |= DataMem[(Registers[I_rs(inst)]-(0x10000000)+I_im(inst))/4][I_im_zeroEx(inst) % 4];
+        Registers[I_rt(inst)] = temp;
         return 2;
     }
     else if (strcmp(result, "100001") == 0) {
         //
         printf("lh ");
+        unsigned int temp = 0;
+        temp |= DataMem[(Registers[I_rs(inst)]-(0x10000000)+I_im(inst))/4][I_im(inst)%4 < 0 ? I_im(inst)%4+4 : I_im(inst)%4];
+        temp <<= 8;
+        printf("\n");
+        for (int i = 31; i >= 0; i--) {
+            printf("%d", (temp>>i)&1);
+        }
+        printf("\n");
+        temp |= DataMem[(Registers[I_rs(inst)]-(0x10000000)+I_im(inst))/4][I_im(inst)%4 < 0 ? I_im(inst)%4+5 : I_im(inst)%4+1];
+        if ((temp >> 15) & 1) {
+            temp |= 0xffff0000;
+        }
+        printf("\n");
+        for (int i = 31; i >= 0; i--) {
+            printf("%d", (temp>>i)&1);
+        }
+        printf("\n");
+        Registers[I_rt(inst)] = temp;
         return 2;
     }
     else if (strcmp(result, "100101") == 0) {
         //
         printf("lhu ");
+        unsigned int temp = 0;
+        temp |= DataMem[(Registers[I_rs(inst)]-(0x10000000)+I_im(inst))/4][I_im(inst)%4];
+        temp <<= 8;
+        temp |= DataMem[(Registers[I_rs(inst)]-(0x10000000)+I_im(inst))/4][I_im(inst)%4+1];
+        Registers[I_rt(inst)] = temp;
         return 2;
     }
     else if (strcmp(result, "001111") == 0) {
@@ -230,65 +276,46 @@ int I_opcodeCheck(char inst[], unsigned int Registers[], unsigned char DataMem[]
         //lw load word/ lw $s1, 100($s2)
         //$s1=memory[$s2 + 100] : $s1에 메모리 베이스 주소 $s2에 100을 더한 $s2+100의 주소에 있는 값을 저장
         printf("lw ");
-        printf("\n");
-        for (int j = 31; j >= 0; j--) {
-            printf("%d", (Registers[I_rs(inst)] >> j) & 1);
-        }
-        printf("\n");
         unsigned int temp = 0;
         for (int i = 31; i >= 24 ; i--) {
             temp |= DataMem[(Registers[I_rs(inst)]-(0x10000000)+I_im(inst))/4][0];
         }
         temp <<= 8;
-        printf("temp\n");
-        for (int j = 31; j >= 0; j--) {
-            printf("%d", (temp >> j) & 1);
-        }
-        printf("\n");
         for (int i = 23; i >= 16 ; i--) {
             temp |= DataMem[(Registers[I_rs(inst)]-(0x10000000)+I_im(inst))/4][1];
         }
         temp <<= 8;
-        printf("temp\n");
-        for (int j = 31; j >= 0; j--) {
-            printf("%d", (temp >> j) & 1);
-        }
-        printf("\n");
         for (int i = 15; i >= 8 ; i--) {
             temp |= DataMem[(Registers[I_rs(inst)]-(0x10000000)+I_im(inst))/4][2];
         }
         temp <<= 8;
-        printf("temp\n");
-        for (int j = 31; j >= 0; j--) {
-            printf("%d", (temp >> j) & 1);
-        }
-        printf("\n");
         for (int i = 7; i >= 0 ; i--) {
             temp |= DataMem[(Registers[I_rs(inst)]-(0x10000000)+I_im(inst))/4][3];
         }
-        printf("temp\n");
-        for (int j = 31; j >= 0; j--) {
-            printf("%d", (temp >> j) & 1);
-        }
-        printf("\n");
         Registers[I_rt(inst)] = temp;
         return 2;
     }
     else if (strcmp(result, "001101") == 0) {
         //
         printf("ori ");
-        Registers[I_rt(inst)] = Registers[I_rs(inst)] | I_im(inst);
+        Registers[I_rt(inst)] = Registers[I_rs(inst)] | I_im_zeroEx(inst);
         return 0;
     }
     else if (strcmp(result, "101000") == 0) {
         //
         printf("sb ");
+        for (int i = 7; i >= 0 ; i--) {
+            char ch = 0;
+            ch |= (Registers[I_rt(inst)] >> i) << (i);
+            DataMem[Registers[I_rs(inst)]/4+I_im(inst)/4-(0x10000000)/4][I_im(inst)%4] = ch;
+        }
         return 2;
     }
     else if (strcmp(result, "001010") == 0) {
         //
         printf("slti ");
-        if (Registers[I_rs(inst)] < I_im(inst)) {
+        printf("%d %d\n", (signed)Registers[I_rs(inst)], I_im(inst));
+        if ((signed)Registers[I_rs(inst)] < I_im(inst)) {
             Registers[I_rt(inst)] = 1;
         } else {
             Registers[I_rt(inst)] = 0;
@@ -302,54 +329,46 @@ int I_opcodeCheck(char inst[], unsigned int Registers[], unsigned char DataMem[]
     else if (strcmp(result, "101001") == 0) {
         //
         printf("sh ");
+        for (int i = 15; i >= 8 ; i--) {
+            char ch = 0;
+            ch |= (Registers[I_rt(inst)] >> i) << (i-8);
+            DataMem[Registers[I_rs(inst)]/4+I_im(inst)/4-(0x10000000)/4][I_im(inst)%4+1] = ch;
+        }
+        for (int i = 7; i >= 0 ; i--) {
+            char ch = 0;
+            ch |= (Registers[I_rt(inst)] >> i) << (i);
+            DataMem[Registers[I_rs(inst)]/4+I_im(inst)/4-(0x10000000)/4][I_im(inst)%4] = ch;
+        }
         return 2;
     }
     else if (strcmp(result, "101011") == 0) {
         //
         printf("sw ");
-        printf("\nrt : \n");
-        for (int j = 31; j >= 0; j--) {
-            printf("%d", (Registers[I_rt(inst)] >> j) & 1);
-        }
+        char ch = 0;
         for (int i = 31; i >= 24 ; i--) {
-            char ch = 0;
             ch |= (Registers[I_rt(inst)] >> i) << (i-24);
-            DataMem[Registers[I_rs(inst)]+I_im(inst)/4-(0x10000000)][0] = ch;
         }
+        DataMem[(Registers[I_rs(inst)]+I_im(inst)-(0x10000000))/4][0] = ch;
+        ch = 0;
         for (int i = 23; i >= 16 ; i--) {
-            char ch = 0;
             ch |= (Registers[I_rt(inst)] >> i) << (i-16);
-            DataMem[Registers[I_rs(inst)]+I_im(inst)/4-(0x10000000)][1] = ch;
         }
+        DataMem[(Registers[I_rs(inst)]+I_im(inst)-(0x10000000))/4][1] = ch;
+        ch = 0;
         for (int i = 15; i >= 8 ; i--) {
-            char ch = 0;
             ch |= (Registers[I_rt(inst)] >> i) << (i-8);
-            DataMem[Registers[I_rs(inst)]+I_im(inst)/4-(0x10000000)][2] = ch;
         }
+        DataMem[(Registers[I_rs(inst)]+I_im(inst)-(0x10000000))/4][2] = ch;
+        ch = 0;
         for (int i = 7; i >= 0 ; i--) {
-            char ch = 0;
             ch |= (Registers[I_rt(inst)] >> i) << (i);
-            DataMem[Registers[I_rs(inst)]+I_im(inst)/4-(0x10000000)][3] = ch;
         }
-        printf("\nRegister[rs]\n");
-        for (int j = 31; j >= 0; j--) {
-            printf("%d", (Registers[I_rs(inst)] >> j) & 1);
-        }
-        Mem(DataMem, 0x10000000);
+        DataMem[(Registers[I_rs(inst)]+I_im(inst)-(0x10000000))/4][3] = ch;
         return 2;
     }
     else if (strcmp(result, "001110") == 0) {
         printf("wxori ");
         return 0;
-    }
-    else if (strcmp(result, "000010") == 0) {
-        //
-        printf("j ");
-        return 4;
-    }
-    else if (strcmp(result, "000011") == 0) {
-        printf("jal ");   
-        return 4;
     }
     return 5;
 }
@@ -434,6 +453,18 @@ int I_im(char inst[]) {
     }
     return im;
 }
+int I_im_zeroEx(char inst[]) {
+    char result[16] = "";
+    substring(inst, result, 16, 16);
+    int im = 0;
+    for (int i = 15; i >= 0; i--) {
+        if (result[i]) {
+            im += (result[i]-48) << (15-i);
+
+        }
+    }
+    return im;
+}
 int I_label(char inst[]) {
     char result[16] = "";
     substring(inst, result, 16, 16);
@@ -449,11 +480,37 @@ int I_label(char inst[]) {
     }
     return label;
 }
-int J_opcodeCheck(char inst[]) {
+int J_opcodeCheck(char inst[], int* num) {
     char result[6] = "";
     substring(inst, result, 0, 6);
     if (strcmp(result, "000010") == 0) {
         printf("j ");
+        //PC(num)의 첫 4bit + target 26bit를 shift left 2 한거
+        unsigned int target = 0;
+        target = J_target(inst) << 2;
+        int origin = *num*4;
+        int result = 0;
+        origin >>= 28;
+        origin <<= 28;
+        result = origin | target;
+        printf("\nPC(num) : %d", *num);
+        printf("\n");
+        for (int i = 31; i >= 0; i--) {
+            printf("%d", (*num>>i) & 1);
+        }
+        printf("\n");
+        for (int i = 31; i >= 0; i--) {
+            printf("%d", (origin>>i) & 1);
+        }
+        printf("\n");
+        for (int i = 31; i >= 0; i--) {
+            printf("%d", (result>>i) & 1);
+        }
+        printf("\n");
+        printf("result : %d\n", result);
+        *num = result/4;
+        (*num)--;
+        printf("*num : %d\n", *num);
         return 0;
     }
     else {
@@ -467,11 +524,7 @@ int J_target(char inst[]) {
     int target = 0;
     for (int i = 25; i >= 0; i--) {
         if (result[i]) {
-            if (i == 0) {
-                target -= (result[i]-48) << (25-i);
-            } else {
-                target += (result[i]-48) << (25-i);
-            }
+            target += (result[i]-48) << (25-i);
         }
     }
     return target;
@@ -480,11 +533,11 @@ void Reg(unsigned int Registers[], int num) {
     for (int i = 0; i < 32; i++) {
         printf("$%d: %08x\n", i, Registers[i]);
     }
-    printf("PC: %08x\n", num*4+4);
+    printf("PC: %08x\n", num*4);
 }
 
 void Mem(unsigned char DataMem[][4], int startAddress) {
-    printf("\nin Mem\n");
+    printf("in Mem\n");
     for (int k = 0; k < 4; k++) {
         printf("0x");
         for (int i = 0; i < 4; i++) {
@@ -495,7 +548,6 @@ void Mem(unsigned char DataMem[][4], int startAddress) {
 }
 
 int main(int argc, char *argv[]) {
-    // printf("%s %s %s %s\n", argv[0], argv[1], argv[2], argv[3]);
     int N = atoi(argv[2]);
     printf("N : %d\n", N);
     unsigned int Registers[32];
@@ -523,42 +575,17 @@ int main(int argc, char *argv[]) {
         printf("\n");
         x++;
     }
-    printf("\n");
-    printf("InstMem\n");
-    // for (int k = 0; k < 65536/4; k++) {
-    for (int k = 0; k < 30; k++) {
-        for (int i = 0; i < 4; i++) {
-            for (int j = 3; j >= 0; j--) {
-                printf("%d", (InstMem[k][i]>>j) & 1);
-            }
-        }
-        printf("\n");
-    }
 
-    printf("\n");
-    printf("DataMem\n");
-    for (int k = 0; k < 30; k++) {
-        for (int i = 0; i < 4; i++) {
-            for (int j = 3; j >= 0; j--) {
-                printf("%d", (DataMem[k][i]>>j) & 1);
-            }
-        }
-        printf("\n");
-    }
     int num = 0;
-    while(1) {
-        printf("inst %d: ", num);
-        for (int i = 0; i < 4; i++) {
-            for (int j = 7; j >= 0; j--) {
-                printf("%d", (InstMem[num][i]>>j) & 1);
-            }
-        }
+    int checkN = 1;
+    int unknown = 0;
 
+    while(checkN <= N && unknown == 0) {
+        printf("-----checkN : %d-----\n", checkN);
+        printf("inst %d: ", num);
         idx = 0;
         for (int i = 0; i < 4; i++) {
-            // printf(" ");
             for (int j = 7; j >= 0; j--) {
-                // printf("%d", InstMem[num*4+i] >> j & 1);
                 if ((InstMem[num][i] >> j) & 1) {
                     inst[idx] = '1';
                 } else {
@@ -575,94 +602,104 @@ int main(int argc, char *argv[]) {
                 printf("$%d, ", R_rd(inst)); //rd
                 printf("$%d, ", R_rs(inst)); //rs
                 printf("$%d\n", R_rt(inst)); //rt
-                Reg(Registers, 0);
                 break;
             case 1:
                 printf("$%d, ", R_rs(inst)); //rs
                 printf("$%d\n", R_rt(inst)); //r
-                Reg(Registers, 0);
                 break;
             case 2:
                 printf("$%d, ", R_rd(inst)); //rd
                 printf("$%d\n", R_rs(inst)); //rs
-                Reg(Registers, 0);
                 break;
             case 3:
                 printf("$%d\n", R_rs(inst)); //rs
-                Reg(Registers, 0);
                 break;
             case 4:
                 printf("$%d\n", R_rd(inst)); //rd
-                Reg(Registers, 0);
                 break;
             case 5:
                 printf("$%d, ", R_rd(inst)); //rd
                 printf("$%d, ", R_rt(inst)); //rt
                 printf("%d\n", R_sa(inst)); //sa
-                Reg(Registers, 0);
                 break;
 
             case 6:
                 printf("$%d, ", R_rd(inst)); //rd
                 printf("$%d, ", R_rt(inst)); //rt
                 printf("$%d\n", R_rs(inst)); //rs
-                Reg(Registers, 0);
                 break;
             case 7:
                 printf("\n");
                 break;
             default:
                 printf("unknown instruction\n");
-                num--;
-                if (!strcmp(argv[3], "reg")) {
-                    Reg(Registers, num);
-                }
-                if (!strcmp(argv[3], "mem")) {
-                    Mem(DataMem, atoi(argv[4]));
-                }
+                unknown = 1;
             }
         } else if (opcode == 1) { //I-type
-            switch (I_opcodeCheck(inst, Registers, DataMem, &num)) {
+            switch (I_opcodeCheck(inst, Registers, DataMem, InstMem, &num)) {
             case 0:
                 printf("$%d, ", I_rt(inst)); //rt
                 printf("$%d, ", I_rs(inst)); //rs
                 printf("%d\n", I_im(inst)); //immediate
-                Reg(Registers, 0);
                 break;
             case 1:
                 printf("$%d, ", I_rs(inst)); //rs
                 printf("$%d, ", I_rt(inst)); //rt
                 printf("%d\n", I_im(inst)); //immediate
-                Reg(Registers, 0);
                 break;
             case 2:
                 printf("$%d, ", I_rt(inst)); //rt
                 printf("%d", I_im(inst)); //immediate
                 printf("($%d)\n", I_rs(inst)); //rs
-                Reg(Registers, 0);
                 break;
             case 3:
                 printf("$%d, ", I_rt(inst)); //rt
                 printf("%d\n" , I_im(inst)); //immediate
-                Reg(Registers, 0);
                 break;
             default:
                 printf("unknown instruction\n");
-                num--;
-                if (!strcmp(argv[3], "reg")) {
-                    Reg(Registers, num);
-                }
-                if (!strcmp(argv[3], "mem")) {
-                    Mem(DataMem, atoi(argv[4]));
-                }
-                return 0;
+                unknown = 1;
             }
         } else if (opcode == 2) { //J-type
-            J_opcodeCheck(inst);
+            J_opcodeCheck(inst, &num);
             printf("%d\n", J_target(inst)); //target 26bit
         }
         num++;
+        checkN++;
+        if (unknown == 1) {
+            printf("unknown instruction\n");
+        }
+        if (argv[3] != NULL) {
+            if (!strcmp(argv[3], "reg")) {
+                printf("reg\n");
+                Reg(Registers, num);
+            }
+            if (!strcmp(argv[3], "mem")) {
+                printf("mem\n");
+                Mem(DataMem, strtol(argv[4], NULL, 16));
+                Mem(DataMem, strtol(argv[4], NULL, 16)+16);
+                Reg(Registers, num);
+            }
+        }
     }
+
+    printf("\nanswer\n");
+    if (unknown == 1) {
+        printf("unknown instruction\n");
+    }
+    if (argv[3] != NULL) {
+        if (!strcmp(argv[3], "reg")) {
+            printf("reg\n");
+            Reg(Registers, num);
+        }
+        if (!strcmp(argv[3], "mem")) {
+            printf("mem\n");
+            Mem(DataMem, strtol(argv[4], NULL, 16));
+            Mem(DataMem, strtol(argv[4], NULL, 16)+16);
+            Reg(Registers, num);
+        }
+    }
+
     fclose(f_input); // 파일 닫기
     return 0;
 }
