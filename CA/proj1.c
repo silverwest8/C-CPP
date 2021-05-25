@@ -145,7 +145,6 @@ int I_opcodeCheck(char inst[]) {
         return 0;
     }
     else if (strcmp(result, "001100") == 0) {
-        printf("andi ");
         return 0;
     }
     else if (strcmp(result, "000100") == 0) {
