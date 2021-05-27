@@ -1,10 +1,64 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+unsigned int Registers[32];
+unsigned char InstMem[65536/4][4];
+unsigned char DataMem[65536/4][4];
+unsigned char LRU[8];
+unsigned char Valid[16];
+unsigned char Dirty[16]; 
+unsigned char TagInCache[16][23]; //8 * 128byte // 1024/16 = 64 block
+unsigned char CacheMem[16][64];
+int hit_num = 0;
+int miss_num = 0;
+// 16bit tag 32 - 9    --> 23 bit offset
+// index size : 8      --> 3 bit offset
+// bolck size : 64byte --> 6 bit offset 1w 4b 2 / 2w 8b 3 /4w 16b 4/ 8w 32b 5 / 16w 64b 6 / 32w 128 71
+int getIndex(int address) {
+    int index = 0;
+    for (int i = 8; i >= 6; i--) {
+        if ((address >> i) & 1) {
+            index += (1>>(i-6));
+        }
+    }
+    return index;
+}
+int getOffset(int address) {
+    int offset = 0;
+    for (int i = 5; i >= 0; i--) {
+        if ((address >> i) & 1) {
+            offset += (1>>i);
+        }
+    }
+    printf("Offset is %d\n", offset);
+    return offset;
+}
+int TagComparator(int address, int id) {
+    if (id == 0) {
+        for (int i = 31; i >= 9; i--) {
+            if ( (TagInCache[getIndex(address)*2][31-i]-48) != ((address >> i) & 1)) {
+                return -1;
+            }
+        }
+        return 1;
+    }
+    else if (id == 1) {
+        for (int i = 31; i >= 9; i--) {
+            if ( (TagInCache[getIndex(address)*2+1][31-i]-48) != ((address >> i) & 1)) {
+                return -1;
+            }
+        }
+        return 1;
+    }
+    printf("exception\n");
+    return 0;
+}
+
 void substring(char inst[], char result[], int start, int len);
 int typeCheck(char inst[]);
-int R_funcCheck(char inst[], unsigned int Registers[]);
-int I_opcodeCheck(char inst[], unsigned int Registers[], unsigned char DataMem[][4], unsigned char InstMem[][4], int* inst_num);
+int R_funcCheck(char inst[]);
+int I_opcodeCheck(char inst[], int* inst_num);
 int R_rd(char inst[]);
 int R_rs(char inst[]);
 int R_rt(char inst[]);
@@ -16,8 +70,8 @@ int I_im_zeroEx(char inst[]);
 int I_label(char inst[]);
 int J_opcodeCheck(char inst[], int* inst_num);
 int J_target(char inst[]);
-void RegPrint(unsigned int Registers[], int inst_num);
-void MemPrint(unsigned char DataMem[][4], int startAddress);
+void RegPrint(int inst_num);
+void MemPrint(int startAddress);
 
 void substring(char inst[], char result[], int start, int len) {
     int i = 0;
@@ -38,7 +92,7 @@ int typeCheck(char inst[]) {
         return 1; //Itype
     }
 }
-int R_funcCheck(char inst[], unsigned int Registers[]) {
+int R_funcCheck(char inst[]) {
     char result[6] = "";
     substring(inst, result, 26, 6);
     if (strcmp(result, "100000") == 0) {
@@ -154,7 +208,7 @@ int R_funcCheck(char inst[], unsigned int Registers[]) {
     }
     return 8;
 }
-int I_opcodeCheck(char inst[], unsigned int Registers[], unsigned char DataMem[][4], unsigned char InstMem[][4], int* inst_num) {
+int I_opcodeCheck(char inst[], int* inst_num) {
     char result[6] = "";
     substring(inst, result, 0, 6);
     if (strcmp(result, "001000") == 0) {
@@ -225,6 +279,7 @@ int I_opcodeCheck(char inst[], unsigned int Registers[], unsigned char DataMem[]
         return 2;
     }
     else if (strcmp(result, "100101") == 0) {
+        //******************************[ cache ] ******************************//
         // lhu
         printf("lhu ");
         unsigned int temp = 0;
@@ -246,23 +301,74 @@ int I_opcodeCheck(char inst[], unsigned int Registers[], unsigned char DataMem[]
         //lw load word/ lw $s1, 100($s2)
         //$s1=memory[$s2 + 100] : $s1에 메모리 베이스 주소 $s2에 100을 더한 $s2+100의 주소에 있는 값을 저장
         printf("lw ");
+        int address = Registers[I_rs(inst)]+I_im(inst);
         unsigned int temp = 0;
         for (int i = 31; i >= 24 ; i--) {
-            temp |= DataMem[(Registers[I_rs(inst)]-(0x10000000)+I_im(inst))/4][0];
+            temp |= DataMem[(Registers[I_rs(inst)]+I_im(inst)-(0x10000000))/4][0];
         }
         temp <<= 8;
         for (int i = 23; i >= 16 ; i--) {
-            temp |= DataMem[(Registers[I_rs(inst)]-(0x10000000)+I_im(inst))/4][1];
+            temp |= DataMem[(Registers[I_rs(inst)]+I_im(inst)-(0x10000000))/4][1];
         }
         temp <<= 8;
         for (int i = 15; i >= 8 ; i--) {
-            temp |= DataMem[(Registers[I_rs(inst)]-(0x10000000)+I_im(inst))/4][2];
+            temp |= DataMem[(Registers[I_rs(inst)]+I_im(inst)-(0x10000000))/4][2];
         }
         temp <<= 8;
         for (int i = 7; i >= 0 ; i--) {
-            temp |= DataMem[(Registers[I_rs(inst)]-(0x10000000)+I_im(inst))/4][3];
+            temp |= DataMem[(Registers[I_rs(inst)]+I_im(inst)-(0x10000000))/4][3];
         }
         Registers[I_rt(inst)] = temp;
+        
+        int index = getIndex(address);
+        printf("Index is %d\n", index);
+        //cache hit인지 확인
+        if ( (Valid[index*2] == '1') || Valid[index*2+1] == '1') {
+            //tag가 일치하는지 확인
+            if (TagComparator(address, 0) == 1 || TagComparator(address, 1) == 1) {
+                hit_num++;
+            }
+        }
+        else {
+            miss_num++;
+            if (LRU[index] == '0') {
+                if (Valid[index*2] == '0') { // invalid 한 경우
+                    Valid[index*2] = '1'; // valid set
+                    Dirty[index*2] = '0';
+                }
+                for (int i = 31; i >= 9; i--) { // fetched to cache(TagInCache)
+                    if ((address >> i) & 1) {
+                        TagInCache[index*2][31-i] = '1'; 
+                    } else {
+                        TagInCache[index*2][31-i] = '0';
+                    }
+                }
+                LRU[index] = '1'; // LRU change
+                // if (Dirty...)
+            }
+            else if (LRU[index] == '1') {
+                if (Valid[index*2+1] == '0') { // invalid 한 경우
+                    Valid[index*2+1] = '1'; // valid set
+                    Dirty[index*2+1] = '0';
+                }
+                for (int i = 31; i >= 9; i--) {
+                    if ((address >> i) & 1) {
+                        TagInCache[index*2+1][31-i] = '1';
+                    } else {
+                        TagInCache[index*2+1][31-i] = '0';
+                    }
+                }
+                LRU[index] = '1'; // LRU change
+            }
+        }
+
+        for (int i = 31; i >= 0; i--) {
+            if (i == 31) { printf("tag : "); }
+            else if (i == 8) { printf("  index : "); }
+            else if (i == 5) { printf("  offset : "); }
+            printf("%d", (address >> i) & 1);
+        }
+        printf("\n");
         return 2;
     }
     else if (strcmp(result, "001101") == 0) {
@@ -315,6 +421,7 @@ int I_opcodeCheck(char inst[], unsigned int Registers[], unsigned char DataMem[]
         //******************************[ cache ] ******************************//
         // sw
         printf("sw ");
+        int address = Registers[I_rs(inst)]+I_im(inst);
         char ch = 0;
         for (int i = 31; i >= 24 ; i--) {
             ch |= (Registers[I_rt(inst)] >> i) << (i-24);
@@ -335,6 +442,56 @@ int I_opcodeCheck(char inst[], unsigned int Registers[], unsigned char DataMem[]
             ch |= (Registers[I_rt(inst)] >> i) << (i);
         }
         DataMem[(Registers[I_rs(inst)]+I_im(inst)-(0x10000000))/4][3] = ch;
+
+        int index = getIndex(address);
+        printf("Index is %d\n", index);
+        //cache hit인지 확인
+        if ( (Valid[index*2] == '1') || Valid[index*2+1] == '1') {
+            //tag가 일치하는지 확인
+            if (TagComparator(address, 0) == 1 || TagComparator(address, 1) == 1) {
+                hit_num++;
+            }
+        }
+        else {
+            miss_num++;
+            if (LRU[index] == '0') {
+                if (Valid[index*2] == '0') { // invalid 한 경우
+                    Valid[index*2] = '1'; // valid set
+                    Dirty[index*2] = '0';
+                }
+                for (int i = 31; i >= 9; i--) { // fetched to cache(TagInCache)
+                    if ((address >> i) & 1) {
+                        TagInCache[index*2][31-i] = '1'; 
+                    } else {
+                        TagInCache[index*2][31-i] = '0';
+                    }
+                }
+                LRU[index] = '1'; // LRU change
+                // if (Dirty...)
+            }
+            else if (LRU[index] == '1') {
+                if (Valid[index*2+1] == '0') { // invalid 한 경우
+                    Valid[index*2+1] = '1'; // valid set
+                    Dirty[index*2+1] = '0';
+                }
+                for (int i = 31; i >= 9; i--) {
+                    if ((address >> i) & 1) {
+                        TagInCache[index*2+1][31-i] = '1';
+                    } else {
+                        TagInCache[index*2+1][31-i] = '0';
+                    }
+                }
+                LRU[index] = '1'; // LRU change
+            }
+        }
+
+        for (int i = 31; i >= 0; i--) {
+            if (i == 31) { printf("tag : "); }
+            else if (i == 8) { printf("  index : "); }
+            else if (i == 5) { printf("  offset : "); }
+            printf("%d", (address >> i) & 1);
+        }
+        printf("\n");
         return 2;
     }
     else if (strcmp(result, "001110") == 0) {
@@ -467,7 +624,7 @@ int J_opcodeCheck(char inst[], int* inst_num) {
         (*inst_num)--;
         return 0;
     }
-    if (strcmp(result, "000011") == 0) {
+    else if (strcmp(result, "000011") == 0) {
         ////
         printf("jal ");
         unsigned int target = 0;
@@ -483,6 +640,7 @@ int J_opcodeCheck(char inst[], int* inst_num) {
         //jal (opcode: 000011) ➢ Works in the same way as j, and it also stores PC+4 to the ra register (register $31)
         return 1;
     }
+    return 0;
 }
 int J_target(char inst[]) {
     char result[26] = "";
@@ -495,14 +653,14 @@ int J_target(char inst[]) {
     }
     return target;
 }
-void RegPrint(unsigned int Registers[], int inst_num) {
+void RegPrint(int inst_num) {
     for (int i = 0; i < 32; i++) {
         printf("$%d: 0x%08x\n", i, Registers[i]);
     }
     printf("PC: 0x%08x\n", inst_num*4);
 }
 
-void MemPrint(unsigned char DataMem[][4], int startAddress) {
+void MemPrint(int startAddress) {
     for (int k = 0; k < 4; k++) {
         printf("0x");
         for (int i = 0; i < 4; i++) {
@@ -514,15 +672,13 @@ void MemPrint(unsigned char DataMem[][4], int startAddress) {
 
 int main(int argc, char *argv[]) {
     int N = atoi(argv[2]);
-    unsigned int Registers[32];
-    unsigned char InstMem[65536/4][4];
-    unsigned char DataMem[65536/4][4];
-    unsigned char CacheMem[1024/(64*2)][64*2]; //8 * 128byte // 1024/16 = 64 block
-    //16bit tag, 10bit index, 6bit offset
 
     memset(Registers, 0x00000000, sizeof(Registers));
     memset(InstMem, 0xff, sizeof(InstMem));
     memset(DataMem, 0xff, sizeof(DataMem));
+    memset(LRU, 0x30, sizeof(LRU));
+    memset(Valid, 0x30, sizeof(Valid));
+    memset(TagInCache, 0x30, sizeof(TagInCache));
 
     char inst[32];
     FILE *f_input = fopen(argv[1], "rb");
@@ -538,8 +694,6 @@ int main(int argc, char *argv[]) {
     
     int idx;
     int inst_num = 0;
-    int hit_num = 0;
-    int miss_num = 0;
     int unknown = 0;
 
     while(inst_num <= N && unknown == 0) {
@@ -556,17 +710,10 @@ int main(int argc, char *argv[]) {
         }
         printf("\n");
         printf("inst %d: ", inst_num++);
-        for (int i = 0; i < 32; i++) {
-            if (i == 0) { printf("tag : "); }
-            else if (i == 16) { printf("  index : "); }
-            else if (i == 27) { printf("  offset : "); }
 
-            printf("%c", inst[i]);
-        }
-        printf("\n");
         int opcode = typeCheck(inst);
         if (opcode == 0) { //R-type
-            switch(R_funcCheck(inst, Registers)) {
+            switch(R_funcCheck(inst)) {
             case 0:
                 printf("$%d, ", R_rd(inst)); //rd
                 printf("$%d, ", R_rs(inst)); //rs
@@ -604,7 +751,7 @@ int main(int argc, char *argv[]) {
             }
         }
         else if (opcode == 1) { //I-type
-            switch (I_opcodeCheck(inst, Registers, DataMem, InstMem, &inst_num)) {
+            switch (I_opcodeCheck(inst, &inst_num)) {
             case 0:
                 printf("$%d, ", I_rt(inst)); //rt
                 printf("$%d, ", I_rs(inst)); //rs
@@ -642,10 +789,10 @@ int main(int argc, char *argv[]) {
 
     if (argv[3] != NULL) {
         if (!strcmp(argv[3], "reg")) {
-            RegPrint(Registers, inst_num);
+            RegPrint(inst_num);
         }
         if (!strcmp(argv[3], "mem")) {
-            MemPrint(DataMem, strtol(argv[4], NULL, 16));
+            MemPrint(strtol(argv[4], NULL, 16));
         }
     }
 
